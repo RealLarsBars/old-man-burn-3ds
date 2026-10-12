@@ -167,27 +167,25 @@ static void bottomTitle(void) {
   snprintf(line, sizeof line, best ? "Your best here: %s" : "No score on this map yet", a);
   cv_text(line, 160, 134, 11, H(ffd21f), AL_CENTER, BL_ALPHA);
   button(RIDE.x, RIDE.y, RIDE.w, RIDE.h, "\uE000  RIDE", H(ff2d2d), true);
-  snprintf(line, sizeof line, "Hold %s to go · steer with %s / %s or touch", keyName(binds[BIND_GO]), keyName(binds[BIND_UP]), keyName(binds[BIND_DOWN]));
+  snprintf(line, sizeof line, "Hold %s to go · steer with %s / %s or drag", keyName(binds[BIND_GO]), keyName(binds[BIND_UP]), keyName(binds[BIND_DOWN]));
   cv_text(line, 160, 210, cv_text_width(line, 9) > 304 ? 8 : 9, H(b8a9d6), AL_CENTER, BL_ALPHA);
   cv_text("START pause · SELECT settings and controls", 160, 226, 9, H(7d6d9c), AL_CENTER, BL_ALPHA);
 }
-#define TOUCH_MID 132                                            // touching above this line steers up, below it down
-static void steerPad(double y, double h, bool up, bool held) {
-  cv_fill(held ? rgba(255, 210, 31, .30) : rgba(255, 255, 255, .07)); cv_rect(8, y, 304, h);
-  cv_stroke_rect(8, y, 304, h, held ? H(ffd21f) : rgba(255, 255, 255, .18), 2);
-  double cy = y + h / 2, d = up ? -1 : 1;
-  double tri[6] = { 160, cy + d * 16, 136, cy - d * 12, 184, cy - d * 12 };
-  cv_fill(held ? H(ffd21f) : H(b8a9d6)); cv_poly(tri, 3);
-  cv_text(up ? "UP" : "DOWN", 300, cy, 11, held ? H(ffd21f) : H(7d6d9c), AL_RIGHT, BL_MIDDLE);
-}
-static void bottomPlay(int touchDir) {
+static void bottomPlay(int touchY) {                              // touchY: where the stylus is, or -1
   panelBg();
   char b[24]; fmtNum(st == ST_PLAY ? scoreOf() : g.dist, b);
   cv_text(trackName, 12, 18, 11, H(f1ecf7), AL_LEFT, BL_ALPHA);
   cv_text("START pause", 308, 18, 9, H(7d6d9c), AL_RIGHT, BL_ALPHA);
   cv_text(b, 160, 52, 30, H(ffd21f), AL_CENTER, BL_ALPHA);
-  steerPad(62, TOUCH_MID - 66, true, touchDir < 0);
-  steerPad(TOUCH_MID + 4, 232 - TOUCH_MID - 4, false, touchDir > 0);
+  bool held = touchY >= 0;
+  cv_fill(held ? rgba(255, 210, 31, .12) : rgba(255, 255, 255, .06)); cv_rect(8, 62, 304, 170);
+  cv_stroke_rect(8, 62, 304, 170, held ? rgba(255, 210, 31, .6) : rgba(255, 255, 255, .15), 2);
+  if (held) { cv_fill(H(ffd21f)); cv_rect(8, clampd(touchY, 62, 232) - 2, 304, 4); }
+  else {
+    double up[6] = { 160, 80, 148, 94, 172, 94 }, dn[6] = { 160, 214, 148, 200, 172, 200 };
+    cv_fill(H(7d6d9c)); cv_poly(up, 3); cv_poly(dn, 3);
+    cv_text("Drag up and down to steer", 160, 151, 11, H(b8a9d6), AL_CENTER, BL_MIDDLE);
+  }
 }
 static void bottomOver(void) {
   panelBg();
@@ -220,7 +218,7 @@ static void bottomSettings(void) {
   }
   const char *help = settingsSel == 2
     ? "The maps change Sunday midnight and noon daily, Pacific time. Set how far your clock is ahead of Pacific."
-    : settingsSel >= 3 && settingsSel <= 5 ? (capturing >= 0 ? "Press the button to use. START cancels." : "\uE000 then press the button to use. The touch screen and Circle Pad always steer too.")
+    : settingsSel >= 3 && settingsSel <= 5 ? (capturing >= 0 ? "Press the button to use. START cancels." : "\uE000 then press the button to use. Dragging on the touch screen and the Circle Pad always steer too.")
     : settingsSel == 6 ? "Go on L, steer on the D-pad." : "";
   cv_text_wrap(help, 20, 200, 9, H(b8a9d6), 280);
   cv_text("\uE000 change · SELECT / \uE001 close", 160, 232, 9, H(7d6d9c), AL_CENTER, BL_ALPHA);
@@ -235,12 +233,14 @@ int main(void) {
   gfx_build(draw_sprites);
   audio_init(); audio_set(optMusic, optSfx);
   clockMaps(); enterMode(MODE_WEEK);
+  touchPosition lastTouch = { 0 }; bool touching = false;
   const double dt = 1.0 / 60;
   while (aptMainLoop()) {
     hidScanInput();
     u32 kd = hidKeysDown(), kh = hidKeysHeld();
     touchPosition tp; hidTouchRead(&tp);
-    Input in = { 0 }; int touchDir = 0;
+    Input in = { 0 }; int touchY = -1;
+    if (!(kh & KEY_TOUCH)) touching = false;
     if (settingsOpen && capturing >= 0) {                        // waiting for the button to put a control on
       if (kd & (KEY_START | KEY_SELECT)) capturing = -1;
       else for (int i = 0; i < NKEYS; i++) if (kd & KEYS[i].key) { binds[capturing - 3] = KEYS[i].key; capturing = -1; save(); break; }
@@ -281,7 +281,10 @@ int main(void) {
 #ifdef DEVTEST
         roadAt(g.cam + g.bx); in.steer = clampd((RC - g.y) / 10, -1, 1);   // autopilot: keep to the middle of the road
 #endif
-        if (kh & KEY_TOUCH) { touchDir = tp.py < TOUCH_MID ? -1 : 1; in.steer = touchDir; }   // hold the top or bottom half
+        if (kh & KEY_TOUCH) {                                      // drag the stylus up and down: the bike follows it
+          if (touching) in.drag = (tp.py - lastTouch.py) * (LH / 240.0) * 1.25;
+          touching = true; lastTouch = tp; touchY = tp.py;
+        }
       }
     } else if (st == ST_OVER) {
       if (T - overAt > 0.6) {
@@ -303,7 +306,7 @@ int main(void) {
     gfx_top_begin();
     topHud();
     gfx_bottom_begin(H(0a0612));
-    if (st == ST_TITLE) bottomTitle(); else if (st == ST_OVER) bottomOver(); else bottomPlay(touchDir);
+    if (st == ST_TITLE) bottomTitle(); else if (st == ST_OVER) bottomOver(); else bottomPlay(touchY);
     if (settingsOpen) bottomSettings();
     if (kh & KEY_Y) {                                            // hold Y: how busy the CPU and GPU are
       char pf[64]; snprintf(pf, sizeof pf, "CPU %.0f%%  GPU %.0f%%", C3D_GetProcessingTime() * 6.0f, C3D_GetDrawingTime() * 6.0f);
