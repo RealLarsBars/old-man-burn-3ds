@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include "perf.h"
 #include "sim.h"
+#include "audio.h"
 
 #define LOG_FILE "sdmc:/3ds/oldmanburn/perf.txt"
 #define LOG_OLD  "sdmc:/3ds/oldmanburn/perf-old.txt"
@@ -17,9 +18,8 @@ typedef struct { double total, part[PF_N], cpu, gpu; int dist, st, parts, audioB
 static u64 frameStart, lastMark;
 static double partMs[PF_N];
 static bool lastRiding;
-static int lastAudioBufs;
 static bool isNew3ds;
-static char track[64]; static int seed;
+static char track[64]; static int seed, gapsAtStart;
 static int frames, slow, dropped;
 static double sumTotal, maxTotal, sumPart[PF_N], maxPart[PF_N], sumCpu, maxCpu, sumGpu, maxGpu;
 static Frame worst[NWORST]; static int nworst;
@@ -41,7 +41,7 @@ static void keepWorst(const Frame *f) {
 void perf_frame(bool nowRiding, int audioBufs) {
   u64 t = svcGetSystemTick();
   if (lastRiding) {                            // the frame that just finished was part of a ride: count it
-    Frame f = { (t - frameStart) / TICKS_MS, { 0 }, C3D_GetProcessingTime(), C3D_GetDrawingTime(), scoreOf(), st, g.nparts, lastAudioBufs };
+    Frame f = { (t - frameStart) / TICKS_MS, { 0 }, C3D_GetProcessingTime(), C3D_GetDrawingTime(), scoreOf(), st, g.nparts, audioBufs };
     memcpy(f.part, partMs, sizeof partMs);
     frames++; sumTotal += f.total; if (f.total > maxTotal) maxTotal = f.total;
     if (f.total > SLOW_MS) { slow++; dropped += (int)(f.total / 16.7); }
@@ -49,12 +49,12 @@ void perf_frame(bool nowRiding, int audioBufs) {
     sumCpu += f.cpu; if (f.cpu > maxCpu) maxCpu = f.cpu; sumGpu += f.gpu; if (f.gpu > maxGpu) maxGpu = f.gpu;
     keepWorst(&f);
   }
-  lastRiding = nowRiding; lastAudioBufs = audioBufs;
+  lastRiding = nowRiding;
   memset(partMs, 0, sizeof partMs);
   frameStart = lastMark = t;
 }
 void perf_ride_start(const char *name, int sd) {
-  snprintf(track, sizeof track, "%s", name); seed = sd;
+  snprintf(track, sizeof track, "%s", name); seed = sd; gapsAtStart = audio_gaps();
   frames = slow = dropped = nworst = 0;
   sumTotal = maxTotal = sumCpu = maxCpu = sumGpu = maxGpu = 0;
   memset(sumPart, 0, sizeof sumPart); memset(maxPart, 0, sizeof maxPart);
@@ -72,8 +72,10 @@ void perf_ride_end(int score) {
   int z = day + 719468, era = (z >= 0 ? z : z - 146096) / 146097, doe = z - era * 146097;
   int yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365, doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
   int mp = (5 * doy + 2) / 153, dd = doy - (153 * mp + 2) / 5 + 1, mo = mp < 10 ? mp + 3 : mp - 9, yy = yoe + era * 400 + (mo <= 2);
-  fprintf(f, "== %04d-%02d-%02d %02d:%02d  %s  seed %d  %s  score %d\n", yy, mo, dd, hh, mm, track, seed, isNew3ds ? "New 3DS" : "3DS", score);
-  fprintf(f, "frames %d  slow %d (%.1f%%)  dropped %d  avg %.1f ms  worst %.1f ms\n", frames, slow, 100.0 * slow / frames, dropped, sumTotal / frames, maxTotal);
+  char snd[24]; if (audio_core() >= 0) snprintf(snd, sizeof snd, "sound on core %d", audio_core()); else snprintf(snd, sizeof snd, "sound in main loop");
+  fprintf(f, "== %04d-%02d-%02d %02d:%02d  %s  seed %d  %s  %s  score %d\n", yy, mo, dd, hh, mm, track, seed, isNew3ds ? "New 3DS" : "3DS", snd, score);
+  fprintf(f, "frames %d  slow %d (%.1f%%)  dropped %d  avg %.1f ms  worst %.1f ms  sound gaps %d\n", frames, slow, 100.0 * slow / frames, dropped,
+    sumTotal / frames, maxTotal, audio_gaps() - gapsAtStart);
   fprintf(f, "avg/max ms:");
   for (int i = 0; i < PF_N; i++) fprintf(f, "  %s %.1f/%.1f", PART_NAME[i], sumPart[i] / frames, maxPart[i]);
   fprintf(f, "  cpu %.1f/%.1f  gpu %.1f/%.1f\n", sumCpu / frames, maxCpu, sumGpu / frames, maxGpu);

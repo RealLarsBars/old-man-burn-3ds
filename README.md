@@ -8,7 +8,8 @@ SD card.
 - The top screen is the game. It's drawn at the web game's 480x270 and scaled to fit the 400x240 screen.
 - The bottom screen has the map picker, your best, the score while you ride and the game-over card.
 - Halloween and Christmas maps get their seasonal look, and Halloween maps play the Haunted Organ, as on the web.
-- Music and sound are a small synth playing the same notes as the web game's Web Audio code.
+- Music and sound are a small synth playing the same notes as the web game's Web Audio code. It runs on the console's
+  second CPU core, so it doesn't slow the game down.
 
 ## Installing
 
@@ -36,7 +37,8 @@ button). Dragging on the touch screen and the Circle Pad always steer as well.
 ## Reporting lag
 
 Every ride adds a few lines to `sdmc:/3ds/oldmanburn/perf.txt`: how many frames missed the 60 Hz refresh, how long the
-game, sound and drawing took on average and at worst, and the slowest frames with where on the road they happened. Send
+game, sound and drawing took on average and at worst, how often the sound ran dry, and the slowest frames with where on
+the road they happened. Send
 that file along with a lag report. Holding Y shows the CPU and GPU load on the bottom screen while you play.
 
 ## The clock
