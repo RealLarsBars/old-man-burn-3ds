@@ -33,6 +33,12 @@ game runs silently.
 Go, steer up and steer down can each be moved to any button in Settings (pick the line, press A, then press the
 button). Dragging on the touch screen and the Circle Pad always steer as well.
 
+## Reporting lag
+
+Every ride adds a few lines to `sdmc:/3ds/oldmanburn/perf.txt`: how many frames missed the 60 Hz refresh, how long the
+game, sound and drawing took on average and at worst, and the slowest frames with where on the road they happened. Send
+that file along with a lag report. Holding Y shows the CPU and GPU load on the bottom screen while you play.
+
 ## The clock
 
 The weekly map changes Sunday at midnight and the Daily Dash at noon, Pacific time, the same as the server. A 3DS only
@@ -73,3 +79,4 @@ When the road rules change on the web (a new `SW5_FROM`, say), make the same cha
 - `source/gfx.c`: a small slice of the canvas API on citro2d, so `draw.c` reads like the JavaScript
 - `source/audio.c`: the music and sound
 - `source/main.c`: the menus, input, saves and the clock
+- `source/perf.c`: the performance log

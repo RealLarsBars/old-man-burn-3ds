@@ -10,6 +10,7 @@
 #include "gfx.h"
 #include "draw.h"
 #include "audio.h"
+#include "perf.h"
 #include <citro3d.h>
 
 #define H(x) RGB(0x##x)
@@ -98,11 +99,13 @@ void on_crash(void) { audio_crash(); }
 void on_over(void) {
   overAt = T; lastScore = g.dist; prevBest = bestOf(curSeed);
   newBest = setBest(curSeed, g.dist);
+  perf_ride_end(g.dist);
   causeTxt = CAUSES[g.cause][(int)(frand() * 3)];
 }
 static void startRun(void) {
   if (st == ST_OVER) { reseed(curSeed, mode == MODE_DAILY || curSeed >= V2_FROM); }
   newRun(); st = ST_PLAY; paused = false;
+  perf_ride_start(trackName, curSeed);
 #ifdef DEVTEST                                                     // test builds: start far down the road, ride through everything
   simGod = true; g.cam = DEVTEST * M_PX; roadAt(g.cam + g.bx); g.y = RC; g.v = g.P = pace(DEVTEST);
 #endif
@@ -232,10 +235,12 @@ int main(void) {
   draw_init();
   gfx_build(draw_sprites);
   audio_init(); audio_set(optMusic, optSfx);
+  perf_init(); int audioBufs = 0;
   clockMaps(); enterMode(MODE_WEEK);
   touchPosition lastTouch = { 0 }; bool touching = false;
   const double dt = 1.0 / 60;
   while (aptMainLoop()) {
+    perf_frame((st == ST_PLAY || st == ST_CRASH) && !paused, audioBufs);
     hidScanInput();
     u32 kd = hidKeysDown(), kh = hidKeysHeld();
     touchPosition tp; hidTouchRead(&tp);
@@ -270,7 +275,7 @@ int main(void) {
       if (kd & KEY_A) startRun();
     } else if (st == ST_PLAY) {
       if (kd & KEY_START) paused = !paused;
-      if (paused && (kd & KEY_SELECT)) { enterMode(mode); }
+      if (paused && (kd & KEY_SELECT)) { perf_ride_end(scoreOf()); enterMode(mode); }
       else if (!paused) {
         if (kd & KEY_SELECT) { paused = true; }
         in.thr = (kh & binds[BIND_GO]) != 0;
@@ -293,13 +298,13 @@ int main(void) {
         else if (kd & KEY_TOUCH) { if (tp.py >= 180 && tp.py < 212) { if (tp.px < RIDE.x + 85) startRun(); else enterMode(mode); } }
       }
     }
-    update(dt, &in);
-    audio_tick();
+    update(dt, &in); perf_mark(PF_SIM);
+    audioBufs = audio_tick(); perf_mark(PF_AUDIO);
 #ifdef SHOWCASE                                                    // test builds: hold the title scene at the garage for the banner
     if (st == ST_TITLE) { if (SEASON) { SEASON = 0; look_apply(); } g.cam = SHOWCASE; }
 #endif
 
-    gfx_frame_begin();
+    gfx_frame_begin(); perf_mark(PF_WAIT);
     char hint[48]; snprintf(hint, sizeof hint, "HOLD %s, SONNY. KEEP UP.", keyName(binds[BIND_GO]));
     for (char *c = hint; *c; c++) if (*c >= 'a' && *c <= 'z') *c -= 32;
     render_game(st == ST_PLAY && g.t < 5 ? hint : NULL);
@@ -312,7 +317,7 @@ int main(void) {
       char pf[64]; snprintf(pf, sizeof pf, "CPU %.0f%%  GPU %.0f%%", C3D_GetProcessingTime() * 6.0f, C3D_GetDrawingTime() * 6.0f);
       cv_fill(rgba(0, 0, 0, .7)); cv_rect(0, 0, 150, 16); cv_text(pf, 4, 12, 10, H(7dff9c), AL_LEFT, BL_ALPHA);
     }
-    gfx_frame_end();
+    gfx_frame_end(); perf_mark(PF_DRAW);
   }
   save();
   audio_exit();

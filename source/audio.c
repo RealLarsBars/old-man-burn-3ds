@@ -177,15 +177,17 @@ void audio_crash(void) {
   tone(0, 1400, 0.35f, W_SAW, 0.18f, B_SFX, 200); noise(0.02f, 0.25f, F_HP, 3000, 0.35f, B_SFX); tone(0.12f, 90, 0.5f, W_TRI, 0.6f, B_SFX, 40);
   musicT = 0.15f;
 }
-void audio_tick(void) {
+int audio_tick(void) {
   if (st == ST_PLAY && lastSt != ST_PLAY) { musicT = 0.55f; stepN = 0; stepLeft = 0; }   // a fresh run starts the track from the top
   if (st == ST_TITLE && lastSt != ST_TITLE) { for (int i = 0; i < MAXV; i++) if (V[i].bus != B_SFX) V[i].on = false; }
   lastSt = st;
   engFreqT = 46 + (float)g.v * 0.18f + (float)g.thr * 22;
   engGainT = st == ST_PLAY && !paused ? 0.05f + 0.05f * (float)g.thr : 0;
   dlyTime = fminf(0.95f, 60 / bpm() / 4 * 3);
-  if (!ok) return;
+  if (!ok) return 0;
+  int n = 0;
   for (int i = 0; i < NBUF; i++) if (wbuf[i].status == NDSP_WBUF_DONE) {
-    fill(wbuf[i].data_pcm16, BUF); DSP_FlushDataCache(wbuf[i].data_pcm16, BUF * 2); ndspChnWaveBufAdd(0, &wbuf[i]);
+    fill(wbuf[i].data_pcm16, BUF); DSP_FlushDataCache(wbuf[i].data_pcm16, BUF * 2); ndspChnWaveBufAdd(0, &wbuf[i]); n++;
   }
+  return n;
 }
