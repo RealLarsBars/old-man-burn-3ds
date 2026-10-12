@@ -25,13 +25,13 @@ game runs silently.
 | | |
 |---|---|
 | Go | hold L |
-| Steer | D-pad up / down, the Circle Pad, or hold the top or bottom half of the touch screen |
+| Steer | D-pad up / down, the Circle Pad, or drag the stylus up and down on the bottom screen |
 | Pick a map | L / R, or tap the tabs. On Old Maps, left / right picks the week |
 | Pause | START. While paused, SELECT goes back to the menu |
 | Settings | SELECT on the menu: music, sound effects, the clock and the controls |
 
 Go, steer up and steer down can each be moved to any button in Settings (pick the line, press A, then press the
-button). The touch screen and Circle Pad always steer as well.
+button). Dragging on the touch screen and the Circle Pad always steer as well.
 
 ## The clock
 
