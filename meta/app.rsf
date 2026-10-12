@@ -1,0 +1,197 @@
+# makerom settings for the installable (.cia) build. The usual homebrew template.
+BasicInfo:
+  Title                   : "Old Man Burn"
+  ProductCode             : "CTR-H-OMBN"
+  Logo                    : Homebrew
+
+RomFs:
+  # no RomFS: everything is built into the program
+
+TitleInfo:
+  Category                : Application
+  UniqueId                : 0xB0A52
+
+Option:
+  UseOnSD                 : true
+  FreeProductCode         : true
+  MediaFootPadding        : false
+  EnableCrypt             : false
+  EnableCompress          : true
+
+AccessControlInfo:
+  CoreVersion                   : 2
+  DescVersion                   : 2
+  ReleaseKernelMajor            : "02"
+  ReleaseKernelMinor            : "33"
+  UseExtSaveData                : false
+  FileSystemAccess:
+   - DirectSdmc
+  IoAccessControl:
+  MemoryType                    : Application
+  SystemMode                    : 64MB
+  IdealProcessor                : 0
+  AffinityMask                  : 1
+  Priority                      : 16
+  MaxCpu                        : 0x9E
+  HandleTableSize               : 0x200
+  DisableDebug                  : false
+  EnableForceDebug              : false
+  CanWriteSharedPage            : true
+  CanUsePrivilegedPriority      : false
+  CanUseNonAlphabetAndNumber    : true
+  PermitMainFunctionArgument    : true
+  CanShareDeviceMemory          : true
+  RunnableOnSleep               : false
+  SpecialMemoryArrange          : true
+  SystemModeExt                 : 124MB
+  CpuSpeed                      : 804MHz
+  EnableL2Cache                 : true
+  CanAccessCore2                : true
+  SystemCallAccess:
+    AcknowledgeInterrupt: 0x71
+    ArbitrateAddress: 0x22
+    Backdoor: 0x7B
+    BindInterrupt: 0x6F
+    Break: 0x3C
+    CancelTimer: 0x1C
+    ClearEvent: 0x19
+    ClearTimer: 0x1D
+    CloseHandle: 0x23
+    ConnectToPort: 0x2D
+    ControlMemory: 0x01
+    ControlProcessMemory: 0x70
+    CreateAddressArbiter: 0x21
+    CreateCodeSet: 0x73
+    CreateEvent: 0x17
+    CreateMemoryBlock: 0x1E
+    CreateMutex: 0x13
+    CreatePort: 0x47
+    CreateProcess: 0x75
+    CreateResourceLimit: 0x78
+    CreateSemaphore: 0x15
+    CreateSession: 0x48
+    CreateSessionToPort: 0x4A
+    CreateThread: 0x08
+    CreateTimer: 0x1A
+    DuplicateHandle: 0x27
+    ExitProcess: 0x03
+    ExitThread: 0x09
+    FlushProcessDataCache: 0x54
+    GetCurrentProcessorNumber: 0x11
+    GetHandleInfo: 0x29
+    GetProcessId: 0x35
+    GetProcessIdOfThread: 0x36
+    GetProcessIdealProcessor: 0x10
+    GetProcessInfo: 0x2B
+    GetResourceLimit: 0x38
+    GetResourceLimitCurrentValues: 0x3A
+    GetResourceLimitLimitValues: 0x39
+    GetSystemInfo: 0x2A
+    GetSystemTick: 0x28
+    GetThreadContext: 0x3B
+    GetThreadId: 0x37
+    GetThreadIdealProcessor: 0x0F
+    GetThreadInfo: 0x2C
+    GetThreadPriority: 0x0B
+    InvalidateProcessDataCache: 0x52
+    KernelSetState: 0x7C
+    MapMemoryBlock: 0x1F
+    MapProcessMemory: 0x71
+    OutputDebugString: 0x3D
+    QueryMemory: 0x02
+    QueryProcessMemory: 0x7D
+    ReleaseMutex: 0x14
+    ReleaseSemaphore: 0x16
+    ReplyAndReceive: 0x4F
+    RestrictGpuDma: 0x59
+    Run: 0x76
+    SendSyncRequest: 0x32
+    SetGpuProt: 0x59
+    SetHardwareBreakPoint: 0x3F
+    SetProcessAffinityMask: 0x0D
+    SetProcessIdealProcessor: 0x0E
+    SetResourceLimitValues: 0x79
+    SetThreadAffinityMask: 0x0D
+    SetThreadIdealProcessor: 0x0E
+    SetThreadPriority: 0x0C
+    SetTimer: 0x1B
+    SetWifiEnabled: 0x5C
+    SignalEvent: 0x18
+    SleepThread: 0x0A
+    StartInterProcessDma: 0x55
+    StopDma: 0x56
+    StoreProcessDataCache: 0x53
+    TerminateProcess: 0x76
+    UnmapMemoryBlock: 0x20
+    UnmapProcessMemory: 0x72
+    WaitSynchronization1: 0x24
+    WaitSynchronizationN: 0x25
+  InterruptNumbers:
+  ServiceAccessControl:
+   - APT:U
+   - ac:u
+   - am:net
+   - boss:U
+   - cam:u
+   - cecd:u
+   - cfg:nor
+   - cfg:u
+   - csnd:SND
+   - dsp::DSP
+   - frd:u
+   - fs:USER
+   - gsp::Gpu
+   - gsp::Lcd
+   - hid:USER
+   - http:C
+   - ir:rst
+   - ir:u
+   - ir:USER
+   - mic:u
+   - ndm:u
+   - news:s
+   - nwm::EXT
+   - nwm::UDS
+   - ptm:sysm
+   - ptm:u
+   - pxi:dev
+   - soc:U
+   - ssl:C
+   - y2r:u
+
+SystemControlInfo:
+  SaveDataSize: 0KB
+  RemasterVersion: 0
+  StackSize: 0x40000
+  Dependency:
+    ac: 0x0004013000002402
+    act: 0x0004013000003802
+    am: 0x0004013000001502
+    boss: 0x0004013000003402
+    camera: 0x0004013000001602
+    cecd: 0x0004013000002602
+    cfg: 0x0004013000001702
+    codec: 0x0004013000001802
+    csnd: 0x0004013000002702
+    dlp: 0x0004013000002802
+    dsp: 0x0004013000001a02
+    friends: 0x0004013000003202
+    gpio: 0x0004013000001b02
+    gsp: 0x0004013000001c02
+    hid: 0x0004013000001d02
+    http: 0x0004013000002902
+    i2c: 0x0004013000001e02
+    ir: 0x0004013000003302
+    mcu: 0x0004013000001f02
+    mic: 0x0004013000002002
+    ndm: 0x0004013000002b02
+    news: 0x0004013000003502
+    nim: 0x0004013000002c02
+    nwm: 0x0004013000002d02
+    pdn: 0x0004013000002102
+    ps: 0x0004013000003102
+    ptm: 0x0004013000002202
+    ro: 0x0004013000003702
+    socket: 0x0004013000002e02
+    spi: 0x0004013000002302
+    ssl: 0x0004013000002f02
