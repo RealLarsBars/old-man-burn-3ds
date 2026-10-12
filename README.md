@@ -38,8 +38,8 @@ button). Dragging on the touch screen and the Circle Pad always steer as well.
 
 Every ride adds a few lines to `sdmc:/3ds/oldmanburn/perf.txt`: how many frames missed the 60 Hz refresh, how long the
 game, sound and drawing took on average and at worst, how often the sound ran dry, and the slowest frames with where on
-the road they happened. Send
-that file along with a lag report. Holding Y shows the CPU and GPU load on the bottom screen while you play.
+the road they happened. Send that file along with a lag report. Holding Y shows the CPU and GPU load on the bottom
+screen while you play.
 
 ## The clock
 
