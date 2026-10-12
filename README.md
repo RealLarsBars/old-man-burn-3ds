@@ -27,12 +27,17 @@ game runs silently.
 |---|---|
 | Go | hold L |
 | Steer | D-pad up / down, the Circle Pad, or drag the stylus up and down on the bottom screen |
-| Pick a map | L / R, or tap the tabs. On Old Maps, left / right picks the week |
+| Menus | tap a button, or move with the D-pad and press A. B goes back. R on the title screen rides the Daily Dash |
+| Pick an old map | OLD MAPS, then up / down picks the week (the top screen shows it) and A rides it |
 | Pause | START. While paused, SELECT goes back to the menu |
-| Settings | SELECT on the menu: music, sound effects, the clock and the controls |
+| Settings | the Settings button or SELECT on the menu: music, sound effects, steering speed, drag sensitivity, the clock and the controls |
 
 Go, steer up and steer down can each be moved to any button in Settings (pick the line, press A, then press the
 button). Dragging on the touch screen and the Circle Pad always steer as well.
+
+Two sliders in Settings tune the steering, each from 0.5x to 2.0x: "Steering speed" is how fast the bike moves while you
+hold up or down (D-pad, Circle Pad or the remapped buttons), and "Drag sensitivity" is how far it moves for each bit
+you drag the stylus.
 
 ## Reporting lag
 
@@ -80,5 +85,8 @@ When the road rules change on the web (a new `SW5_FROM`, say), make the same cha
 - `source/draw.c`: the game picture: backdrop, road, rails, decor, the garage, the Old Man and the crash
 - `source/gfx.c`: a small slice of the canvas API on citro2d, so `draw.c` reads like the JavaScript
 - `source/audio.c`: the music and sound
-- `source/main.c`: the menus, input, saves and the clock
+- `source/main.c`: the screens, input, saves and the clock
+- `source/ui.c`: the menu look of the web game: buttons with an offset shadow, panels, checkboxes, sliders, D-pad focus
+- `fonts/`: DM Mono and Dela Gothic One (SIL Open Font License), the web game's fonts. `fonts/build.sh` turns them into
+  the `data/*.bin` system fonts the game embeds
 - `source/perf.c`: the performance log

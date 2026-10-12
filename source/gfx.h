@@ -49,6 +49,8 @@ void cv_pattern(int which, double x, double y, double w, double h);
 
 enum { AL_LEFT, AL_CENTER, AL_RIGHT };
 enum { BL_ALPHA, BL_MIDDLE, BL_TOP };
+enum { FONT_SYS, FONT_MONO, FONT_DISP, NFONT };   // the console's font (has the kana), and the web game's DM Mono / Dela Gothic One
+void cv_font(int f);               // the font the next cv_text calls use
 void cv_text(const char *s, double x, double y, double size, col_t c, int align, int base);
 double cv_text_width(const char *s, double size);
 void cv_text_wrap(const char *s, double x, double y, double size, col_t c, double width);   // top-left, wrapped at width

@@ -49,7 +49,8 @@ static inline u32 c2dA(col_t c, double alpha) {
 }
 
 /* ---------- state ---------- */
-void cv_reset(void) { memset(&cur, 0, sizeof cur); cur.m.a = cur.m.d = 1; cur.alpha = 1; cur.fill = 0x000000ff; sp = 0; }
+static int curFont;                                              // the font cv_text uses (see cv_font)
+void cv_reset(void) { curFont = FONT_SYS; memset(&cur, 0, sizeof cur); cur.m.a = cur.m.d = 1; cur.alpha = 1; cur.fill = 0x000000ff; sp = 0; }
 void cv_save(void) { if (sp < 48) stk[sp++] = cur; cur.clipTop = cur.nclip; }
 void cv_restore(void) { if (sp > 0) cur = stk[--sp]; }
 void cv_translate(double x, double y) { cur.m.e += cur.m.a * x + cur.m.c * y; cur.m.f += cur.m.b * x + cur.m.d * y; }
@@ -257,16 +258,27 @@ void cv_pattern(int which, double x, double y, double w, double h) {
   else C2D_DrawImage(img, &p, NULL);
 }
 
-/* ---------- text in the console's own font (it has the kana and kanji for the crash stamp) ---------- */
-static float textScale(double size) { return (float)(size / fontPx); }
+/* ---------- text: the console's own font (it has the kana and kanji for the crash stamp) and the web game's fonts ---------- */
+#include "mono_bin.h"
+#include "disp_bin.h"
+static C2D_Font fonts[NFONT]; static float fontEm[NFONT];
+static void loadFonts(void) {
+  fonts[FONT_MONO] = C2D_FontLoadFromMem(mono_bin, mono_bin_size);
+  fonts[FONT_DISP] = C2D_FontLoadFromMem(disp_bin, disp_bin_size);
+  fontEm[FONT_SYS] = fontPx;
+  for (int i = 1; i < NFONT; i++) fontEm[i] = fonts[i] ? C2D_FontGetInfo(fonts[i])->lineFeed * (i == FONT_DISP ? 0.48f : 0.78f) : fontPx;
+}
+void cv_font(int f) { curFont = fonts[f] || f == FONT_SYS ? f : FONT_SYS; }
+static float textScale(double size) { return (float)(size / fontEm[curFont]); }
 // Parsing text is slow on the 3DS, so each string is parsed once and kept (the cache empties itself when full).
 #define TCACHE 96
 static C2D_TextBuf tcBuf; static struct { uint32_t h; C2D_Text t; } tc[TCACHE]; static int ntc;
 static const C2D_Text *textOf(const char *s) {
-  uint32_t h = 2166136261u; for (const char *p = s; *p; p++) h = (h ^ (uint8_t)*p) * 16777619u;
+  uint32_t h = 2166136261u + curFont; for (const char *p = s; *p; p++) h = (h ^ (uint8_t)*p) * 16777619u;
   for (int i = 0; i < ntc; i++) if (tc[i].h == h) return &tc[i].t;
   if (ntc == TCACHE || C2D_TextBufGetNumGlyphs(tcBuf) > 3500) { C2D_TextBufClear(tcBuf); ntc = 0; }
-  C2D_Text *t = &tc[ntc].t; if (!C2D_TextParse(t, tcBuf, s)) { C2D_TextBufClear(tcBuf); ntc = 0; t = &tc[0].t; if (!C2D_TextParse(t, tcBuf, s)) return NULL; }
+  C2D_Font f = fonts[curFont];
+  C2D_Text *t = &tc[ntc].t; if (!C2D_TextFontParse(t, f, tcBuf, s)) { C2D_TextBufClear(tcBuf); ntc = 0; t = &tc[0].t; if (!C2D_TextFontParse(t, f, tcBuf, s)) return NULL; }
   C2D_TextOptimize(t); tc[ntc].h = h; ntc++;
   return t;
 }
@@ -330,9 +342,10 @@ void gfx_init(void) {
   rt = C3D_RenderTargetCreateFromTex(&rtTex, GPU_TEXFACE_2D, 0, -1);
   tbuf = C2D_TextBufNew(4096); tcBuf = C2D_TextBufNew(4096);
   fontPx = C2D_FontGetInfo(NULL)->lineFeed * 0.82f;
+  loadFonts();
   cv_reset();
 }
-void gfx_exit(void) { C2D_TextBufDelete(tbuf); C2D_TextBufDelete(tcBuf); C2D_Fini(); C3D_Fini(); gfxExit(); }
+void gfx_exit(void) { for (int i = 1; i < NFONT; i++) if (fonts[i]) C2D_FontFree(fonts[i]); C2D_TextBufDelete(tbuf); C2D_TextBufDelete(tcBuf); C2D_Fini(); C3D_Fini(); gfxExit(); }
 static void blendNormal(void) {    // keep the off-screen picture opaque: alpha accumulates towards 1
   C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 }
