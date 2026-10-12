@@ -9,7 +9,7 @@
 
 #define RATE 22050
 #define BUF 256                  // small buffers, so each frame synthesizes about the same amount
-#define NBUF 8
+#define NBUF 10
 #define MAXV 64
 
 enum { W_SINE, W_SQUARE, W_SAW, W_TRI, W_P25, W_P12, W_NOISE };
@@ -198,7 +198,7 @@ static void startThread(void) {
   bool n3ds = false; APT_CheckNew3DS(&n3ds);
   if (n3ds && (thread = threadCreate(soundThread, NULL, 16 * 1024, 0x18, 2, false))) { threadCore = 2; }   // New 3DS: its spare core
   else {
-    APT_SetAppCpuTimeLimit(30);                                    // the system core lets a game use part of it
+    APT_SetAppCpuTimeLimit(40);                                    // the system core lets a game use part of it
     if ((thread = threadCreate(soundThread, NULL, 16 * 1024, 0x18, 1, false))) threadCore = 1;
   }
   if (thread) ndspSetCallback(onDspFrame, NULL);
