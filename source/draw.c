@@ -26,6 +26,7 @@ static const Sky SEASON_SKY[3] = { { 0 }, { H(0e0620), H(d8582a), false, true, t
 static Zone ZONES[3];
 static struct { col_t wall, A, B; } GAR;
 static double stars[36][3];
+static bool garageDirty = true;                                  // the garage's cached picture needs redrawing
 
 static const Sky *skyOf(int zi) { return SEASON ? &SEASON_SKY[SEASON] : &SKIES[skyPerm[zi]]; }
 
@@ -39,6 +40,7 @@ void look_apply(void) {                                         // rebuild the s
   GAR.wall = walls[(int)floor(hash(SEED, 40) * 3)]; GAR.A = As[(int)floor(hash(SEED, 41) * 3)]; GAR.B = Bs[(int)floor(hash(SEED, 42) * 3)];
   if (SEASON == 1) { GAR.wall = H(1a1024); GAR.A = H(ff8a1f); GAR.B = H(b98cff); }
   if (SEASON == 2) { GAR.wall = H(142533); GAR.A = H(ff3a3a); GAR.B = H(7dff9c); }
+  garageDirty = true;
 }
 void draw_init(void) {
   pat_make(PAT_ROAD, H(34747f), H(2a606b), H(427f8b), 260, 2);
@@ -356,20 +358,16 @@ static void neon(const char *txt, double cx, double cy, double size, col_t col, 
   cv_alpha(alpha); cv_text(txt, cx, cy, size, col, AL_CENTER, BL_MIDDLE); cv_alpha(a0);
 }
 static void ellipseFill(double cx, double cy, double rx, double ry) { cv_begin(); cv_ellipse(cx, cy, rx, ry, 0, 0, 7); cv_fillpath(); }
-static void drawGarage(double camX, bool front) {
-  if (camX > 800) return;
+// The garage at the start of every map. Everything that doesn't move is drawn once into a texture when the map's look is
+// set (it is a few hundred shapes, too many to draw every frame on an original 3DS); the swaying and flickering bits are
+// drawn live on top.
+#define GAR_X0 -140                                               // the cached picture covers world x -140..820, y 40..270
+#define GAR_Y0 40
+#define GAR_W 960
+static void garageStatic(void) {
+  const double camX = 0;
   #define X(w) rnd((w) - camX)
   const double x0 = 6, x1 = 470, wallTop = 80, base = 160;
-  if (front) {
-    drawBike(X(70), 247, 0, 0, false); drawBike(X(168), 247, 0, 0, false);
-    for (int k = 0; k < 4; k++) { double y = 256 - k * 6; cv_fill(H(18121f)); ellipseFill(X(16), y, 12, 4.5); R(X(16) - 9, y - 1, 18, 1, H(d9d4e8)); R(X(16) - 11, y - 3, 22, 1, H(3a3350)); }
-    for (int k = 0; k < 2; k++) { double dx = k ? 504 : 486; R(X(dx), 238, 14, 18, H(2a6a9a)); cv_fill(H(1c4a70)); F(X(dx), 242, 14, 2); F(X(dx), 250, 14, 2); R(X(dx) + 2, 238, 2, 18, H(7fb5dc)); }
-    double vx = X(548); R(vx, 226, 18, 30, H(d8243a)); R(vx, 252, 18, 4, H(8c1626));
-    R(vx + 2, 229, 14, 14, H(f1ecf7)); static const col_t vc[6] = { H(ffd21f), H(22e6d8), H(ff3ea5), H(7dff9c), H(ff8a2f), H(9bb8ff) };
-    for (int i = 0; i < 3; i++) for (int j = 0; j < 2; j++) R(vx + 3 + j * 6, 231 + i * 4, 4, 3, vc[i * 2 + j]);
-    R(vx + 4, 246, 10, 3, H(0a0612));
-    return;
-  }
   // concrete forecourt that fades into the landscape
   R(X(-140), base, 880, LH - base, H(8a86a4));
   cv_fill(H(767290)); for (int x = -140; x < 740; x += 40) F(X(x), base, 1, LH - base);
@@ -391,18 +389,7 @@ static void drawGarage(double camX, bool front) {
   R(X(x0), wallTop + 2, x1 - x0, base - wallTop - 2, GAR.wall);
   cv_fill(rgba(255, 255, 255, .045)); for (double x = x0; x < x1; x += 6) F(X(x), wallTop + 2, 1, base - wallTop - 2);
   R(X(x0), base - 4, x1 - x0, 4, H(4a4666));
-  // lanterns along the eave
-  for (double x = x0 + 12; x < x1 - 6; x += 36) {
-    double sw = sin(T * 1.6 + x) * 1; cv_fill(rgba(255, 106, 74, .16)); cv_circle(X(x) + sw, 90, 13);
-    R(X(x) + sw, wallTop + 2, 1, 4, H(0a0612)); cv_fill(H(e8333f)); ellipseFill(X(x) + sw + 0.5, 90, 6, 8);
-    cv_fill(H(5a0d17)); F(X(x) + sw - 5, 86, 11, 1); F(X(x) + sw - 5, 93, 11, 1); R(X(x) + sw - 1, 89, 3, 2, H(ffd9a0));
-  }
-  // neon sign
-  double fl = (sin(T * 2.3) > 0.985 ? 0.35 : 1) * (0.88 + 0.12 * sin(T * 9));
-  double sx = X(x0 + 96), sy = 88;
-  R(sx, sy, 244, 30, H(0a0612)); cv_alpha(fl); cv_stroke_rect(sx + 1, sy + 1, 242, 28, GAR.A, 2); cv_alpha(1);
-  neon("じいさんガレージ", sx + 122, sy + 12, 15, GAR.A, fl);
-  neon("OLD MAN'S GARAGE · EST. 1952", sx + 122, sy + 24, 6, GAR.B, fl);
+  { double sx = X(x0 + 96), sy = 88; R(sx, sy, 244, 30, H(0a0612)); }   // the neon sign's board
   // bays with warm light and parked silhouettes
   for (int i = 0; i < 3; i++) {
     double bx = X(x0 + 24 + i * 112), by = 122, bw = 100, bh = base - by - 4, o = (i % 2) * 10;
@@ -419,6 +406,41 @@ static void drawGarage(double camX, bool front) {
   double ox0 = X(x0 + 372);
   R(ox0, 122, 34, base - 126, H(26385a)); R(ox0 + 3, 126, 6, base - 134, H(4a6a9a)); R(ox0 + 16, 122, 2, base - 126, H(0a0612));
   R(ox0 + 42, 128, 40, 20, H(ffd77a)); cv_fill(H(0a0612)); F(ox0 + 61, 128, 2, 20); F(ox0 + 42, 137, 40, 2);
+
+  #undef X
+}
+static void garageCache(void) {                                  // at the start of a frame, before anything else is drawn
+  if (!garageDirty) return;
+  pat_offset(0); spr_begin(SPR_GARAGE, GAR_W, LH - GAR_Y0, 1, -GAR_X0, -GAR_Y0); garageStatic(); spr_end(); garageDirty = false;
+}
+static void drawGarage(double camX, bool front) {
+  if (camX > 800) return;
+  #define X(w) rnd((w) - camX)
+  if (front) {
+    drawBike(X(70), 247, 0, 0, false); drawBike(X(168), 247, 0, 0, false);
+    for (int k = 0; k < 4; k++) { double y = 256 - k * 6; cv_fill(H(18121f)); ellipseFill(X(16), y, 12, 4.5); R(X(16) - 9, y - 1, 18, 1, H(d9d4e8)); R(X(16) - 11, y - 3, 22, 1, H(3a3350)); }
+    for (int k = 0; k < 2; k++) { double dx = k ? 504 : 486; R(X(dx), 238, 14, 18, H(2a6a9a)); cv_fill(H(1c4a70)); F(X(dx), 242, 14, 2); F(X(dx), 250, 14, 2); R(X(dx) + 2, 238, 2, 18, H(7fb5dc)); }
+    double vx = X(548); R(vx, 226, 18, 30, H(d8243a)); R(vx, 252, 18, 4, H(8c1626));
+    R(vx + 2, 229, 14, 14, H(f1ecf7)); static const col_t vc[6] = { H(ffd21f), H(22e6d8), H(ff3ea5), H(7dff9c), H(ff8a2f), H(9bb8ff) };
+    for (int i = 0; i < 3; i++) for (int j = 0; j < 2; j++) R(vx + 3 + j * 6, 231 + i * 4, 4, 3, vc[i * 2 + j]);
+    R(vx + 4, 246, 10, 3, H(0a0612));
+    return;
+  }
+  const double x0 = 6, x1 = 470, wallTop = 80;
+  cv_save(); cv_translate(rnd(-camX), 0); cv_sprite(SPR_GARAGE); cv_restore();
+  // lanterns along the eave
+  for (double x = x0 + 12; x < x1 - 6; x += 36) {
+    double sw = sin(T * 1.6 + x) * 1; cv_fill(rgba(255, 106, 74, .16)); cv_circle(X(x) + sw, 90, 13);
+    R(X(x) + sw, wallTop + 2, 1, 4, H(0a0612)); cv_fill(H(e8333f)); ellipseFill(X(x) + sw + 0.5, 90, 6, 8);
+    cv_fill(H(5a0d17)); F(X(x) + sw - 5, 86, 11, 1); F(X(x) + sw - 5, 93, 11, 1); R(X(x) + sw - 1, 89, 3, 2, H(ffd9a0));
+  }
+  // neon sign
+  double fl = (sin(T * 2.3) > 0.985 ? 0.35 : 1) * (0.88 + 0.12 * sin(T * 9));
+  double sx = X(x0 + 96), sy = 88;
+  cv_alpha(fl); cv_stroke_rect(sx + 1, sy + 1, 242, 28, GAR.A, 2); cv_alpha(1);
+  neon("じいさんガレージ", sx + 122, sy + 12, 15, GAR.A, fl);
+  neon("OLD MAN'S GARAGE · EST. 1952", sx + 122, sy + 24, 6, GAR.B, fl);
+  double ox0 = X(x0 + 372);
   for (int k = 0; k < 4; k++) { double wv = sin(T * 2 + k) * 1.5; R(ox0 + k * 8 + wv, 118, 7, 14, H(c5243a)); cv_fill(H(f1ecf7)); F(ox0 + k * 8 + wv, 118, 7, 1); F(ox0 + k * 8 + 3 + wv, 124, 1, 5); }
   neon("BACK IN 20", ox0 + 62, 118, 6, GAR.B, fl * (sin(T * 5) > -0.6 ? 1 : 0.4));
   // nobori banners along the front
@@ -490,6 +512,7 @@ static void drawParts(double camX) {
 
 void render_game(const char *hint) {
   double camX = g.cam;
+  if (camX <= 800) garageCache();
   pat_offset(fmod(fmod(g.cam, TILE) + TILE, TILE));
   cv_save();
   if (g.shake > 0.3) cv_translate(rnd((frand() - 0.5) * g.shake), rnd((frand() - 0.5) * g.shake));

@@ -54,7 +54,8 @@ double cv_text_width(const char *s, double size);
 void cv_text_wrap(const char *s, double x, double y, double size, col_t c, double width);   // top-left, wrapped at width
 
 // sprites: drawn once (inside gfx_build), then stamped with the current transform
-enum { SPR_BIKE, SPR_HALFTONE, NSPR };
+enum { SPR_BIKE, SPR_HALFTONE, SPR_GARAGE, NSPR };
 void gfx_build(void (*fn)(void));
 void spr_begin(int id, int w, int h, double scale, double px, double py);   // draw it with the cv_ calls after this
 void cv_sprite(int id);
+void spr_end(void);                // after drawing a sprite in the middle of a frame: back to the game picture

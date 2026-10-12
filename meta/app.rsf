@@ -27,6 +27,10 @@ AccessControlInfo:
   FileSystemAccess:
    - DirectSdmc
   IoAccessControl:
+  IORegisterMapping:
+   - 1ff00000-1ff7ffff                # DSP memory: sound (ndsp) faults without it when installed as a .cia
+  MemoryMapping:
+   - 1f000000-1f5fffff:r              # VRAM
   MemoryType                    : Application
   SystemMode                    : 64MB
   IdealProcessor                : 0

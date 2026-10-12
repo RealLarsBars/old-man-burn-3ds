@@ -8,8 +8,8 @@
 #include <stdlib.h>
 
 #define RATE 22050
-#define BUF 1024
-#define NBUF 4
+#define BUF 256                  // small buffers, so each frame synthesizes about the same amount
+#define NBUF 10
 #define MAXV 64
 
 enum { W_SINE, W_SQUARE, W_SAW, W_TRI, W_P25, W_P12, W_NOISE };
@@ -111,51 +111,102 @@ static void playOrgan(int n, float sd) {
 static float bpm(void) { return SEASON == 1 ? 132 : 156; }
 
 /* ---------- mixing ---------- */
-static inline float osc(Voice *v) {
-  float p = v->ph;
+// Voice by voice over a whole stretch of samples, rather than sample by sample over every voice: the old 3DS's CPU is
+// slow enough that the per-sample loop over all the voice slots cost most of a frame.
+static float busBuf[4][BUF];
+#define VOICE_LOOP(EXPR) for (; i < n; i++) {                                             \
+    float s = (EXPR) * gn; if (filt) s = bq(&v->f, s);                                       \
+    out[i] += s;                                                                             \
+    ph += inc; if (ph >= 1) ph -= 1;                                                         \
+    if (incLeft > 0) { inc *= incMul; incLeft--; }                                           \
+    if (t < att) gn *= attMul; else if (t >= hold) gn *= relMul;                             \
+    if (++t > end) { v->on = false; break; }                                                 \
+  }
+static void runVoice(Voice *v, int n) {
+  int i = 0;
+  if (v->delay > 0) { i = v->delay < n ? v->delay : n; v->delay -= i; if (i == n) return; }
+  float *out = busBuf[v->bus];
+  float ph = v->ph, inc = v->inc, incMul = v->incMul, gn = v->g, attMul = v->attMul, relMul = v->relMul;
+  int incLeft = v->incLeft, t = v->t, att = v->att, hold = v->hold, end = v->hold + v->rel + RATE / 30; bool filt = v->filt;
   switch (v->wave) {
-    case W_SINE: return sinTab[(int)(p * 1024) & 1023];
-    case W_SQUARE: return p < 0.5f ? 1 : -1;
-    case W_SAW: return 2 * p - 1;
-    case W_TRI: return p < 0.5f ? 4 * p - 1 : 3 - 4 * p;
-    case W_P25: return p < 0.25f ? 1 : -0.333f;
-    case W_P12: return p < 0.125f ? 1 : -0.143f;
-    default: nseed = nseed * 1664525u + 1013904223u; return (int32_t)nseed / 2147483648.0f;
+    case W_SINE: VOICE_LOOP(sinTab[(int)(ph * 1024) & 1023]) break;
+    case W_SQUARE: VOICE_LOOP(ph < 0.5f ? 1.0f : -1.0f) break;
+    case W_SAW: VOICE_LOOP(2 * ph - 1) break;
+    case W_TRI: VOICE_LOOP(ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph) break;
+    case W_P25: VOICE_LOOP(ph < 0.25f ? 1.0f : -0.333f) break;
+    case W_P12: VOICE_LOOP(ph < 0.125f ? 1.0f : -0.143f) break;
+    default: VOICE_LOOP((nseed = nseed * 1664525u + 1013904223u, (int32_t)nseed / 2147483648.0f)) break;
+  }
+  v->ph = ph; v->inc = inc; v->incLeft = incLeft; v->g = gn; v->t = t;
+}
+static void mixRange(s16 *out, int from, int n) {                // n samples of everything into out[from..]
+  for (int b = 0; b < 4; b++) memset(busBuf[b], 0, n * sizeof(float));
+  for (int k = 0; k < MAXV; k++) if (V[k].on) runVoice(&V[k], n);
+  int dl = (int)(dlyTime * RATE); if (dl >= dlyLen) dl = dlyLen - 1;
+  float mOn = music ? 1 : 0, fxOn = sfx ? 0.8f : 0, lvlK = 1.0f / (0.1f * RATE);
+  for (int i = 0; i < n; i++) {
+    // the engine: a sawtooth growl through a low-pass, pitched by speed and throttle
+    engFreq += (engFreqT - engFreq) * 0.0009f; engGain += (engGainT - engGain) * 0.0006f;
+    engPh += engFreq * (1.0f / RATE); if (engPh >= 1) engPh -= 1;
+    float fx = busBuf[B_SFX][i] + bq(&engF, 2 * engPh - 1) * engGain;
+    // the lead's dotted-eighth echo
+    int r = dlyPos - dl; if (r < 0) r += dlyLen;
+    float lead = busBuf[B_LEAD][i], echo = dly[r];
+    dly[dlyPos] = lead * 0.42f + echo * 0.32f; if (++dlyPos == dlyLen) dlyPos = 0;
+    musicLvl += (musicT - musicLvl) * lvlK;
+    float m = (busBuf[B_MUSIC][i] + bq(&bassF, busBuf[B_BASS][i]) + lead + echo) * musicLvl * mOn + fx * fxOn;
+    int o = (int)(m * (0.6f * 40000)); out[from + i] = o > 32767 ? 32767 : o < -32768 ? -32768 : o;
   }
 }
 static void fill(s16 *out, int n) {
   float sd = 60 / bpm() / 4; int stepLen = (int)(sd * RATE);
   bool playing = st != ST_TITLE;
-  for (int i = 0; i < n; i++) {
+  for (int pos = 0; pos < n; ) {                                 // in stretches that end where the next music step starts
     if (playing && stepLeft <= 0) { if (SEASON == 1) playOrgan(stepN, sd); else playSummer(stepN, sd); stepN++; stepLeft = stepLen; }
-    stepLeft--;
-    float mus = 0, bass = 0, lead = 0, fx = 0;
-    for (int k = 0; k < MAXV; k++) {
-      Voice *v = &V[k]; if (!v->on) continue;
-      if (v->delay > 0) { v->delay--; continue; }
-      float s = osc(v) * v->g; if (v->filt) s = bq(&v->f, s);
-      v->ph += v->inc; if (v->ph >= 1) v->ph -= 1;
-      if (v->incLeft > 0) { v->inc *= v->incMul; v->incLeft--; }
-      if (v->t < v->att) v->g *= v->attMul; else if (v->t >= v->hold && v->t >= v->att) v->g *= v->relMul;
-      if (++v->t > v->hold + v->rel + RATE / 30) v->on = false;
-      if (v->bus == B_MUSIC) mus += s; else if (v->bus == B_BASS) bass += s; else if (v->bus == B_LEAD) lead += s; else fx += s;
-    }
-    // the engine: a sawtooth growl through a low-pass, pitched by speed and throttle
-    engFreq += (engFreqT - engFreq) * 0.0009f; engGain += (engGainT - engGain) * 0.0006f;
-    engPh += engFreq / RATE; if (engPh >= 1) engPh -= 1;
-    fx += bq(&engF, 2 * engPh - 1) * engGain;
-    // the lead's dotted-eighth echo
-    int dl = (int)(dlyTime * RATE); if (dl >= dlyLen) dl = dlyLen - 1;
-    float echo = dly[(dlyPos - dl + dlyLen) % dlyLen];
-    dly[dlyPos] = lead * 0.42f + echo * 0.32f; dlyPos = (dlyPos + 1) % dlyLen;
-    musicLvl += (musicT - musicLvl) * (1.0f / (0.1f * RATE));
-    float m = (mus + bq(&bassF, bass) + lead + echo) * musicLvl * (music ? 1 : 0) + fx * 0.8f * (sfx ? 1 : 0);
-    m *= 0.6f;
-    int o = (int)(m * 40000); out[i] = o > 32767 ? 32767 : o < -32768 ? -32768 : o;
+    int k = n - pos; if (playing && stepLeft < k) k = stepLeft;
+    mixRange(out, pos, k);
+    stepLeft -= k; pos += k;
   }
 }
 
+/* ---------- the sound thread: on the second CPU core, so making sound never holds up a frame ---------- */
+static Thread thread; static int threadCore = -1;               // -1: no thread, the main loop fills the buffers itself
+static LightLock lock; static LightEvent wake; static volatile bool quit;
+static void ftz(void) {
+#ifdef __arm__
+  u32 fpscr; __asm__ volatile("vmrs %0, fpscr" : "=r"(fpscr));   // flush tiny floats to zero: the fading echo and filters
+  __asm__ volatile("vmsr fpscr, %0" :: "r"(fpscr | (1 << 24)));  // otherwise end up in slow denormal arithmetic
+#endif
+}
+static volatile int soundGaps;                                       // times every buffer had run dry: the sound cut out
+static int pump(void) {                                          // refill every buffer the DSP has finished playing
+  int n = 0;
+  for (int i = 0; i < NBUF; i++) if (wbuf[i].status == NDSP_WBUF_DONE) {
+    fill(wbuf[i].data_pcm16, BUF); DSP_FlushDataCache(wbuf[i].data_pcm16, BUF * 2); ndspChnWaveBufAdd(0, &wbuf[i]); n++;
+  }
+  if (n == NBUF) soundGaps++;
+  return n;
+}
+int audio_gaps(void) { return soundGaps; }
+static void onDspFrame(void *d) { (void)d; LightEvent_Signal(&wake); }
+static void soundThread(void *arg) {
+  (void)arg; ftz();
+  while (!quit) { LightEvent_Wait(&wake); LightLock_Lock(&lock); pump(); LightLock_Unlock(&lock); }
+}
+static void startThread(void) {
+  LightLock_Init(&lock); LightEvent_Init(&wake, RESET_ONESHOT);
+  bool n3ds = false; APT_CheckNew3DS(&n3ds);
+  if (n3ds && (thread = threadCreate(soundThread, NULL, 16 * 1024, 0x18, 2, false))) { threadCore = 2; }   // New 3DS: its spare core
+  else {
+    APT_SetAppCpuTimeLimit(40);                                    // the system core lets a game use part of it
+    if ((thread = threadCreate(soundThread, NULL, 16 * 1024, 0x18, 1, false))) threadCore = 1;
+  }
+  if (thread) ndspSetCallback(onDspFrame, NULL);
+}
+int audio_core(void) { return threadCore; }
+
 void audio_init(void) {
+  ftz();
   for (int i = 0; i < 1024; i++) sinTab[i] = sinf(i * 2 * (float)M_PI / 1024);
   biquad(&bassF, F_LP, 600, 1); biquad(&engF, F_LP, 420, 1);
   dlyLen = RATE; dly = calloc(dlyLen, sizeof(float));
@@ -169,23 +220,31 @@ void audio_init(void) {
   pcm = linearAlloc(BUF * NBUF * sizeof(s16)); memset(pcm, 0, BUF * NBUF * sizeof(s16));
   memset(wbuf, 0, sizeof wbuf);
   for (int i = 0; i < NBUF; i++) { wbuf[i].data_vaddr = pcm + i * BUF; wbuf[i].nsamples = BUF; DSP_FlushDataCache(wbuf[i].data_pcm16, BUF * 2); ndspChnWaveBufAdd(0, &wbuf[i]); }
+  startThread();
 }
-void audio_exit(void) { if (ok) { ndspExit(); linearFree(pcm); } }
+void audio_exit(void) {
+  if (!ok) return;
+  if (thread) { quit = true; LightEvent_Signal(&wake); threadJoin(thread, U64_MAX); threadFree(thread); ndspSetCallback(NULL, NULL); }
+  ndspExit(); linearFree(pcm);
+}
 void audio_set(bool m, bool s) { music = m; sfx = s; }
 void audio_crash(void) {
+  if (thread) LightLock_Lock(&lock);
   noise(0, 1.0f, F_LP, 1800, 0.9f, B_SFX); tone(0, 160, 0.7f, W_SINE, 1.0f, B_SFX, 28);
   tone(0, 1400, 0.35f, W_SAW, 0.18f, B_SFX, 200); noise(0.02f, 0.25f, F_HP, 3000, 0.35f, B_SFX); tone(0.12f, 90, 0.5f, W_TRI, 0.6f, B_SFX, 40);
   musicT = 0.15f;
+  if (thread) LightLock_Unlock(&lock);
 }
-void audio_tick(void) {
-  if (st == ST_PLAY && lastSt != ST_PLAY) { musicT = 0.55f; stepN = 0; stepLeft = 0; }   // a fresh run starts the track from the top
-  if (st == ST_TITLE && lastSt != ST_TITLE) { for (int i = 0; i < MAXV; i++) if (V[i].bus != B_SFX) V[i].on = false; }
-  lastSt = st;
+int audio_tick(void) {
+  if (st != lastSt) {                                            // only a change of state touches what the sound thread uses
+    if (thread) LightLock_Lock(&lock);
+    if (st == ST_PLAY) { musicT = 0.55f; stepN = 0; stepLeft = 0; }   // a fresh run starts the track from the top
+    if (st == ST_TITLE) { for (int i = 0; i < MAXV; i++) if (V[i].bus != B_SFX) V[i].on = false; }
+    lastSt = st;
+    if (thread) LightLock_Unlock(&lock);
+  }
   engFreqT = 46 + (float)g.v * 0.18f + (float)g.thr * 22;
   engGainT = st == ST_PLAY && !paused ? 0.05f + 0.05f * (float)g.thr : 0;
   dlyTime = fminf(0.95f, 60 / bpm() / 4 * 3);
-  if (!ok) return;
-  for (int i = 0; i < NBUF; i++) if (wbuf[i].status == NDSP_WBUF_DONE) {
-    fill(wbuf[i].data_pcm16, BUF); DSP_FlushDataCache(wbuf[i].data_pcm16, BUF * 2); ndspChnWaveBufAdd(0, &wbuf[i]);
-  }
+  return ok && !thread ? pump() : 0;
 }

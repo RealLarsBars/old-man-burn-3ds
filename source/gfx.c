@@ -288,6 +288,7 @@ void cv_text_wrap(const char *s, double x, double y, double size, col_t c, doubl
   C2D_DrawText(t, C2D_WithColor | C2D_WordWrap, X, Y, 0, sc, sc, c2d(c), (float)width);
 }
 
+static void blendNormal(void);
 /* ---------- sprites: pictures drawn once into a texture and then stamped, rotated and scaled ---------- */
 typedef struct { C3D_Tex tex; C3D_RenderTarget *t; int w, h; float sc, px, py; Tex3DS_SubTexture sub; } Sprite;
 static Sprite spr[NSPR];
@@ -311,6 +312,7 @@ void cv_sprite(int id) {                                     // the sprite's piv
   if (cur.alpha < 0.999) { C2D_ImageTint tint; C2D_AlphaImageTint(&tint, (float)cur.alpha); C2D_DrawImage(img, &p, &tint); }
   else C2D_DrawImage(img, &p, NULL);
 }
+void spr_end(void) { C2D_SceneBegin(rt); blendNormal(); cv_reset(); }
 void gfx_build(void (*fn)(void)) {
   C3D_FrameBegin(C3D_FRAME_SYNCDRAW); C2D_TextBufClear(tbuf); fn(); C3D_FrameEnd(0);
 }
