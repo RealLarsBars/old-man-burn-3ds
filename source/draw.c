@@ -1,7 +1,8 @@
-// The game picture, ported from the drawing half of web/game.js (default outfit only: no cosmetics on the 3DS).
+// The game picture, ported from the drawing half of web/game.js (the Old Man's cosmetics are in look.c).
 #include "draw.h"
 #include "sim.h"
 #include "gfx.h"
+#include "look.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -255,80 +256,7 @@ static void drawRails(double camX, bool front) {
   }
 }
 
-/* ---------- the Old Man and his bike (the default look) ---------- */
-static void line2(col_t c, double w, double x1, double y1, double x2, double y2) { cv_begin(); cv_move(x1, y1); cv_line(x2, y2); cv_stroke(c, w); }
-static void drawWheel(double cx) {
-  cv_save(); cv_translate(cx, 0);
-  cv_fill(H(14101f)); cv_circle(0, 0, 8);
-  cv_fill(H(6c6a86)); cv_circle(0, 0, 5);
-  cv_fill(H(14101f)); cv_circle(0, 0, 3.5);
-  R(-1, -1, 2, 2, H(c8c8d8)); cv_restore();
-}
-static void drawTank(void) {
-  col_t c1 = H(ffd21f), c2 = H(ff5a1f);
-  cv_save(); cv_begin(); cv_ellipse(20, -14, 9, 5, 0, 0, 7); cv_fill(c1); cv_fillpath(); cv_clip();
-  R(10, -11.4, 20, 3, shadec(c1, 0.72));
-  cv_fill(c2); { double p[8] = { 13, -13, 20, -17, 24, -13, 18, -12 }; cv_poly(p, 4); }
-  cv_fill(rgba(255, 255, 255, .75)); F(24, -17.6, 2, 1); F(26.4, -16.8, 1, 1);
-  cv_restore();
-}
-// the brown cardigan, knitted: dark ribs every fourth column and light stitches between (KNIT in the web game)
-static void knit(int x0, int y0, int x1, int y1) {
-  R(x0, y0, x1 - x0, y1 - y0, H(8a5a2e));
-  for (int x = x0; x < x1; x++) {
-    int m = ((x % 4) + 4) % 4; double w = x + 1 < x1 ? 1.5 : 1;
-    if (m == 0) R(x, y0, w, y1 - y0, H(714822));
-    else if (m == 2) for (int y = y0; y < y1; y++) if ((((y % 2) + 2) % 2) == 0) R(x, y, w, y + 1 < y1 ? 1.5 : 1, H(9c6a3a));
-  }
-}
-static void drawCoat(void) {
-  col_t trim = H(5e3a1a), btn = H(e9dcb8);
-  cv_save(); cv_begin(); cv_move(6, -15); cv_line(-8, -14); cv_line(-6, -24); cv_line(7, -28);
-  cv_move(11 + 6 * cos(0.25), -24 + 6 * sin(0.25)); cv_ellipse(11, -24, 6, 9, 0.25, 0, 7); cv_clip();
-  knit(-9, -34, 19, -12);
-  cv_fill(rgba(20, 10, 30, .28)); F(-9, -25, 6, 12); F(12, -25, 7, 1);
-  R(-9, -16, 28, 4, trim); cv_fill(rgba(0, 0, 0, .25)); for (int x = -9; x < 19; x += 2) F(x, -16, 1, 4);
-  R(15, -26, 1, 10, trim); R(16, -23, 1, 1, btn); R(16, -19, 1, 1, btn);
-  cv_restore();
-  R(9, -32, 5, 2, trim);
-}
-static void drawSleeve(void) {
-  cv_save(); cv_begin(); cv_move(11, -30); cv_line(24.5, -28); cv_line(24.5, -24.5); cv_line(11, -26); cv_clip();
-  knit(11, -31, 25, -24);
-  cv_fill(rgba(20, 10, 30, .25)); F(11, -26, 14, 2);
-  R(22, -29, 2, 5, H(5e3a1a));
-  cv_restore();
-}
-// Everything that tilts with the wheelie, in the bike's own coordinates. It never changes (the default look has plain
-// rims), so it is drawn once into a sprite at twice the size and stamped every frame.
-static void bikeBody(void) {
-  drawWheel(0); drawWheel(34);
-  col_t fc = H(ffd21f);
-  cv_begin(); cv_arc(34, 0, 10, -M_PI * 0.97, -M_PI * 0.42); cv_stroke(shadec(fc, 0.55), 2.6);
-  cv_begin(); cv_arc(34, 0, 10.3, -M_PI * 0.95, -M_PI * 0.44); cv_stroke(fc, 1.6);
-  cv_begin(); cv_move(30, -22); cv_line(34, 0); cv_move(24, -27); cv_line(29, -23); cv_stroke(H(cfd2e8), 2);
-  line2(H(3a3556), 2, 0, 0, 22, -6);
-  R(10, -9, 14, 9, H(8e8aa0)); R(10, -3, 14, 3, H(5e5a76));
-  line2(H(d9dcf0), 2, 16, -1, -10, 3);
-  R(-15, 1, 6, 4, H(ff2d2d));
-  drawTank();
-  R(2, -15, 14, 3, H(2a1a3a));
-  // the Old Man: flat cap, round specs, white mustache, brown cardigan, cane strapped on the back
-  R(32, -22, 3, 3, H(ffee99));
-  drawCoat();
-  line2(H(8a5a2e), 2, -9, -22, -11, -37);
-  cv_begin(); cv_move(-11, -37); cv_line(-7, -38); cv_line(-6, -35); cv_stroke(H(e8d9b0), 2);
-  R(-14, -28, 11, 15, H(c0392b)); R(-14, -17, 11, 4, H(8e2418)); cv_fill(H(ffd21f)); F(-12, -22, 7, 2); F(-9, -15, 3, 2);
-  cv_fill(H(6a1a10)); F(-14, -28, 11, 1); F(-3, -27, 1, 12);
-  drawSleeve();
-  R(24, -28, 4, 4, H(f2c9a0));
-  line2(H(3a4a6a), 3, 8, -16, 17, -8);
-  cv_fill(H(f2c9a0)); cv_circle(15, -36, 5);
-  cv_fill(H(f1ecf7)); F(10, -38, 2, 5); F(18, -33, 5, 2); F(19, -31, 3, 1);
-  cv_fill(H(4a5a3a)); { double p[8] = { 9, -39, 13, -43, 22, -42, 23, -39 }; cv_poly(p, 4); }
-  R(18, -40, 7, 2, H(2f3a24));
-  cv_stroke_rect(18.5, -37.5, 3, 3, H(14101f), 1); R(19, -37, 3, 3, rgba(190, 230, 255, .6));
-}
+/* ---------- the Old Man and his bike: the still parts are the SPR_BIKE sprite, the moving ones are drawn live (look.c) ---------- */
 void drawBike(double x, double y, double wheelie, double spin, bool noShadow) {
   x = rnd(x); y = rnd(y);
   cv_save(); cv_translate(x, y); cv_scale(BIKE_SCALE, BIKE_SCALE); cv_translate(-x, -y);
@@ -336,7 +264,7 @@ void drawBike(double x, double y, double wheelie, double spin, bool noShadow) {
   if (wheelie > 0.4 && st != ST_CRASH) R(x - 64, y - 1, 46, 1, rgba(30, 20, 50, .25));
   if (spin) { cv_translate(x, y - 14); cv_rotate(spin); cv_translate(-x, -(y - 14)); }
   cv_translate(x - 17, y - 8); cv_rotate(-0.5 * wheelie);
-  cv_sprite(SPR_BIKE);
+  look_under(); cv_sprite(SPR_BIKE); look_over();
   cv_restore();
 }
 static void halftone(void) {
@@ -345,7 +273,7 @@ static void halftone(void) {
   for (int y = 4; y < LH; y += 8) for (int x = ((y / 8) & 1) * 4; x < LW; x += 8) { double s = clampd(hypot(x - cx, y - cy) / 280 * 4.5, 0, 4.5); F(x, y, s, s); }
 }
 void draw_sprites(void) {
-  spr_begin(SPR_BIKE, 128, 128, 2, 17, 50); bikeBody();
+  look_sprite();
   spr_begin(SPR_HALFTONE, 480, 270, 1, 0, 0); halftone();
 }
 
@@ -500,12 +428,44 @@ static void drawCrashFX(void) {
   if (s2 > 0) { static const char *b[4] = { "ド", "カ", "ー", "ン" }; cv_alpha(s2); vtext(b, 4, LW - 50, 112, 30, H(f1ecf7), H(ff3ea5), 1 + (1 - s2) * 1.5); }
   cv_alpha(1);
 }
-static void drawParts(double camX) {
-  for (int i = 0; i < g.nparts; i++) {
-    Part *p = &g.parts[i];
+// particles; the trails' kinds get their own little sprites, everything else is a square
+void draw_parts(const Part *ps, int n, double camX) {
+  for (int i = 0; i < n; i++) {
+    const Part *p = &ps[i];
     double k = clampd(p->life / p->max, 0, 1), x = rnd(p->x - camX), y = rnd(p->y); cv_fill(p->c);
-    if (p->round) { cv_alpha(k * 0.85); int s = (int)rnd(p->s); F(x - (s >> 1), y - (s >> 1), s, s); cv_alpha(k * 0.35); F(x - (s >> 1) - 1, y - (s >> 1) - 1, s + 2, s + 2); }
-    else { cv_alpha(k); F(x, y, p->w ? p->w : p->s, p->s); }
+    switch (p->kind) {
+    case PK_RING: {                                             // a smoke ring: a thick, squashed loop that widens, tumbles and fades
+      double rx = p->s / 2, ry = fmax(1.6, rx * (0.55 + 0.2 * sin(p->life * 5)));
+      cv_alpha(fmin(1, k * 1.3)); cv_begin(); cv_ellipse(x, y, rx, ry, 0, 0, 6.2831); cv_stroke(p->c, 1.6);
+      cv_alpha(k * 0.35); cv_stroke(p->c, 3); break; }
+    case PK_BUBBLE: {                                           // a soap bubble: thin round rim and a white shine
+      int s = (int)p->s; double l = x - (s >> 1), t = y - (s >> 1);
+      cv_alpha(0.25 + k * 0.6); F(l + 1, t, s - 2, 1); F(l + 1, t + s - 1, s - 2, 1); F(l, t + 1, 1, s - 2); F(l + s - 1, t + 1, 1, s - 2);
+      cv_alpha(k * 0.18); F(l + 1, t + 1, s - 2, s - 2);
+      cv_alpha(k); R(l + 1, t + 1, 1, 1, H(ffffff)); break; }
+    case PK_COIN: {                                             // a spinning coin: its width flips as it turns
+      double sp = fabs(cos(T * 9 + p->ph)); int w = (int)fmax(1, rnd(4 * sp)), h = w >> 1, e = w > 2 ? 1 : 0;
+      cv_alpha(fmin(1, k * 2.5)); cv_fill(H(a87400)); F(x - h, y - 2, w, 4); F(x - h - e, y - 1, w + e * 2, 2);
+      R(x - h, y - 1, w, 2, sp > 0.4 ? H(ffd21f) : H(fff3a8)); if (w > 2) R(x - h, y - 1, 1, 1, H(fff3a8)); break; }
+    case PK_BAT:                                                // a bat: body plus wings that flap up and down
+      cv_alpha(fmin(1, k * 2)); batShape(x, y, sin(T * 13 + p->ph) * 0.8); R(x, y, 1, 1, H(ff5a3a)); break;
+    case PK_FLAKE: {                                            // a snowflake that drifts side to side; big ones are little crosses
+      double xx = x + rnd(sin(T * 3 + p->ph) * 1.5);
+      cv_alpha(fmin(1, k * 1.6)); if (p->s > 1) { F(xx - 1, y, 3, 1); F(xx, y - 1, 1, 3); } else F(xx, y, 1, 1); break; }
+    case PK_GLINT:                                              // glitter: a pixel that flares into a four-point twinkle
+      cv_alpha(k); F(x, y, p->s, p->s);
+      if (sin(T * 10 + p->ph) > 0.55) { cv_fill(H(ffffff)); F(x - 1, y, 3, 1); F(x, y - 1, 1, 3); cv_alpha(k * 0.6); F(x - 2, y, 1, 1); F(x + 2, y, 1, 1); F(x, y - 2, 1, 1); F(x, y + 2, 1, 1); }
+      break;
+    case PK_FIRE: {                                             // exhaust fire: white-yellow at the pipe, cooling to red and shrinking
+      int s = (int)fmax(1, rnd(p->s * (0.4 + 0.6 * k)));
+      cv_alpha(0.3 * k); R(x - (s >> 1) - 1, y - (s >> 1) - 1, s + 2, s + 2, H(ff6a1f));
+      cv_alpha(1); R(x - (s >> 1), y - (s >> 1), s, s, k > 0.75 ? H(fff6c8) : k > 0.5 ? H(ffd21f) : k > 0.28 ? H(ff8a1f) : H(e0242e)); break; }
+    case PK_SPARK:                                              // a spark: a short streak along its flight
+      cv_alpha(fmin(1, k * 2)); F(x, y, p->s + 2, p->s); cv_alpha(fmin(1, k * 2) * 0.4); F(x + p->s + 2, y, 2, 1); break;
+    default:
+      if (p->round) { cv_alpha(k * 0.85); int s = (int)rnd(p->s); F(x - (s >> 1), y - (s >> 1), s, s); cv_alpha(k * 0.35); F(x - (s >> 1) - 1, y - (s >> 1) - 1, s + 2, s + 2); }
+      else { cv_alpha(k); F(x, y, p->w ? p->w : p->s, p->s); }
+    }
   }
   cv_alpha(1);
 }
@@ -522,7 +482,7 @@ void render_game(const char *hint) {
   drawRoad(camX);
   drawDecor(z0, camX, false);
   drawRails(camX, false);
-  drawParts(camX);
+  draw_parts(g.parts, g.nparts, camX);
   cv_alpha(1);
   if (st == ST_PLAY && g.v > g.P * 1.25) {
     cv_fill(rgba(255, 255, 255, .35));

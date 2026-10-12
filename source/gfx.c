@@ -18,6 +18,7 @@ static float clipXY[MAXCLIP][MAXCP * 2]; static int clipN[MAXCLIP];
 #define MAXPATH 512
 #define MAXSUB 16
 static float pathXY[MAXPATH * 2]; static int pathN, subStart[MAXSUB + 1], nsub;
+static double lastX, lastY;                                      // the path's current point, untransformed (for cv_quad / cv_bezier)
 
 static C3D_RenderTarget *rt, *top, *bot;
 static C3D_Tex rtTex;
@@ -145,14 +146,26 @@ void cv_rect(double x, double y, double w, double h) {
 }
 void cv_begin(void) { pathN = 0; nsub = 0; }
 void cv_move(double x, double y) {
+  lastX = x; lastY = y;
   if (nsub < MAXSUB) subStart[nsub++] = pathN;
   if (pathN < MAXPATH) { xf(x, y, &pathXY[pathN * 2], &pathXY[pathN * 2 + 1]); pathN++; }
 }
 void cv_line(double x, double y) {
   if (!nsub) { cv_move(x, y); return; }
+  lastX = x; lastY = y;
   if (pathN < MAXPATH) { xf(x, y, &pathXY[pathN * 2], &pathXY[pathN * 2 + 1]); pathN++; }
 }
 void cv_close(void) { }
+// quadraticCurveTo / bezierCurveTo, flattened into a few line segments (the curves on the bike are a few pixels long)
+void cv_quad(double cx, double cy, double x, double y) {
+  double x0 = lastX, y0 = lastY;
+  for (int i = 1; i <= 6; i++) { double t = i / 6.0, u = 1 - t; cv_line(u * u * x0 + 2 * u * t * cx + t * t * x, u * u * y0 + 2 * u * t * cy + t * t * y); }
+}
+void cv_bezier(double c1x, double c1y, double c2x, double c2y, double x, double y) {
+  double x0 = lastX, y0 = lastY;
+  for (int i = 1; i <= 8; i++) { double t = i / 8.0, u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+    cv_line(a * x0 + b * c1x + c * c2x + d * x, a * y0 + b * c1y + c * c2y + d * y); }
+}
 static double scaleOf(void) { return sqrt(fabs(cur.m.a * cur.m.d - cur.m.b * cur.m.c)); }
 void cv_ellipse(double cx, double cy, double rx, double ry, double rot, double a0, double a1) {
   // canvas: ellipse(x, y, rx, ry, rot, start, end); 7 (as the web game writes it) means a whole turn
@@ -186,6 +199,24 @@ void cv_stroke(col_t c, double w) {
   for (int s = 0; s < nsub; s++) {
     int a = subStart[s], b = s + 1 < nsub ? subStart[s + 1] : pathN;
     for (int i = a; i + 1 < b; i++) segment(pathXY[i * 2], pathXY[i * 2 + 1], pathXY[i * 2 + 2], pathXY[i * 2 + 3], hw, col);
+  }
+}
+void cv_stroke_dash(col_t c, double w, double on, double off) {   // setLineDash([on, off]): the pattern restarts on each subpath
+  u32 col = c2d(c); if (!(col >> 24)) return;
+  float sc = (float)scaleOf(), hw = (float)(w * sc / 2), pat[2] = { (float)(on * sc), (float)(off * sc) };
+  if (pat[0] + pat[1] < 0.05f) { cv_stroke(c, w); return; }
+  for (int s = 0; s < nsub; s++) {
+    int a = subStart[s], b = s + 1 < nsub ? subStart[s + 1] : pathN, k = 0; float left = pat[0];
+    for (int i = a; i + 1 < b; i++) {
+      float x0 = pathXY[i * 2], y0 = pathXY[i * 2 + 1], dx = pathXY[i * 2 + 2] - x0, dy = pathXY[i * 2 + 3] - y0, l = sqrtf(dx * dx + dy * dy), t = 0;
+      if (l < 1e-4f) continue;
+      while (t < l) {
+        float e = fminf(l, t + left);
+        if (!k) segment(x0 + dx * t / l, y0 + dy * t / l, x0 + dx * e / l, y0 + dy * e / l, hw, col);
+        left -= e - t; t = e;
+        if (left <= 1e-4f) { k ^= 1; left = pat[k]; }
+      }
+    }
   }
 }
 void cv_stroke_rect(double x, double y, double w, double h, col_t c, double lw) {
@@ -268,6 +299,7 @@ static void loadFonts(void) {
   fontEm[FONT_SYS] = fontPx;
   for (int i = 1; i < NFONT; i++) fontEm[i] = fonts[i] ? C2D_FontGetInfo(fonts[i])->lineFeed * (i == FONT_DISP ? 0.48f : 0.78f) : fontPx;
 }
+int cv_get_font(void) { return curFont; }
 void cv_font(int f) { curFont = fonts[f] || f == FONT_SYS ? f : FONT_SYS; }
 static float textScale(double size) { return (float)(size / fontEm[curFont]); }
 // Parsing text is slow on the 3DS, so each string is parsed once and kept (the cache empties itself when full).

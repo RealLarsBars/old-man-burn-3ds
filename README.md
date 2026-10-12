@@ -39,6 +39,19 @@ Two sliders in Settings tune the steering, each from 0.5x to 2.0x: "Steering spe
 hold up or down (D-pad, Circle Pad or the remapped buttons), and "Drag sensitivity" is how far it moves for each bit
 you drag the stylus.
 
+## The garage and achievements
+
+GARAGE on the title screen dresses the Old Man and his bike: paint, cardigan, hat, wheels, decal, gear, carrier, cane
+and trail, the same 124 items as the Discord version, each unlocked by the same achievement. Up / down picks a slot,
+left / right (or tapping either side) changes it, and the top screen shows the bike up close. The Goals tab (or L / R)
+lists every achievement by what it counts, with your progress.
+
+There are no coins or leaderboards offline, so the achievements that count them have offline goals instead: rides of
+500 m or more for coins put in, 5,000 on a weekly map for a pot win, new bests for pot coins, 2,000 in a Daily Dash for
+a Daily Dash win, and 3,000 on an old map or a holiday map for a top 3. Stats and the loadout are kept in
+`sdmc:/3ds/oldmanburn/profile.txt`. `tools/achgen.py` rebuilds `source/achdata.c` from `tools/achievements.json`
+(copy it over from the web game's `web/achievements.json` when that changes).
+
 ## Reporting lag
 
 Every ride adds a few lines to `sdmc:/3ds/oldmanburn/perf.txt`: how many frames missed the 60 Hz refresh, how long the
@@ -86,6 +99,8 @@ When the road rules change on the web (a new `SW5_FROM`, say), make the same cha
 - `source/gfx.c`: a small slice of the canvas API on citro2d, so `draw.c` reads like the JavaScript
 - `source/audio.c`: the music and sound
 - `source/main.c`: the screens, input, saves and the clock
+- `source/look.c`: the cosmetics, drawn as the web game draws them; static parts are cached in the bike sprite
+- `source/ach.c`: achievements, stats and the loadout, saved to the SD card
 - `source/ui.c`: the menu look of the web game: buttons with an offset shadow, panels, checkboxes, sliders, D-pad focus
 - `fonts/`: DM Mono and Dela Gothic One (SIL Open Font License), the web game's fonts. `fonts/build.sh` turns them into
   the `data/*.bin` system fonts the game embeds

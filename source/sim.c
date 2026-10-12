@@ -389,3 +389,9 @@ void update(double dt, const Input *in) {
     g.nfx = j; }
   g.shake *= exp(-dt * 5); g.flash = fmax(0, g.flash - dt * 2);
 }
+
+int swervesPassed(double wx) {                                  // swerves the bike is already past (the achievements count them)
+  int i = lbSw(wx);
+  if (i > 0 && sw[i - 1].x + sw[i - 1].len >= wx) i--;
+  return i;
+}

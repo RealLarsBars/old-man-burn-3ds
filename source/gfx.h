@@ -33,8 +33,11 @@ void cv_line(double x, double y);
 void cv_arc(double cx, double cy, double r, double a0, double a1);
 void cv_ellipse(double cx, double cy, double rx, double ry, double rot, double a0, double a1);
 void cv_close(void);
+void cv_quad(double cx, double cy, double x, double y);                                  // quadraticCurveTo
+void cv_bezier(double c1x, double c1y, double c2x, double c2y, double x, double y);      // bezierCurveTo
 void cv_fillpath(void);
 void cv_stroke(col_t c, double w);
+void cv_stroke_dash(col_t c, double w, double on, double off);   // stroke with setLineDash([on, off])
 void cv_stroke_rect(double x, double y, double w, double h, col_t c, double lw);
 void cv_clip(void);               // clip to the current path (each subpath must be convex; several = their union)
 void cv_poly(const double *xy, int n);
@@ -50,7 +53,8 @@ void cv_pattern(int which, double x, double y, double w, double h);
 enum { AL_LEFT, AL_CENTER, AL_RIGHT };
 enum { BL_ALPHA, BL_MIDDLE, BL_TOP };
 enum { FONT_SYS, FONT_MONO, FONT_DISP, NFONT };   // the console's font (has the kana), and the web game's DM Mono / Dela Gothic One
-void cv_font(int f);               // the font the next cv_text calls use
+void cv_font(int f);
+int cv_get_font(void);               // the font the next cv_text calls use
 void cv_text(const char *s, double x, double y, double size, col_t c, int align, int base);
 double cv_text_width(const char *s, double size);
 void cv_text_wrap(const char *s, double x, double y, double size, col_t c, double width);   // top-left, wrapped at width

@@ -1,5 +1,5 @@
 // Old Man Burn for the Nintendo 3DS: the weekly map, the Daily Dash and the old maps, offline.
-// No coins, pot or leaderboards: your best on each map is kept on the SD card.
+// No coins, pot or leaderboards: your best on each map, your stats and achievements are kept on the SD card.
 #include <3ds.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +12,7 @@
 #include "audio.h"
 #include "perf.h"
 #include "ui.h"
+#include "ach.h"
 #include <citro3d.h>
 
 #define H(x) RGB(0x##x)
@@ -20,10 +21,13 @@ static int mode = MODE_WEEK, liveWeek, liveDay, oldWeek, curSeed;
 static char trackName[64];
 static bool optMusic = true, optSfx = true; static int tzOff = 0;   // hours the console clock is ahead of Pacific time
 static int dpadPct = 100, touchPct = 100;                       // steering sensitivity, percent (Settings sliders)
-enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS };
+enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE };
 static int screen = UI_TITLE, backTo = UI_TITLE;                // which menu the bottom screen shows (rides use st)
 static int capturing = -1;                                       // the control (BIND_*) waiting for a button press
 static int archSel, archTop;                                     // the old-maps list: highlighted week and scroll
+static int garTab, garSel, garTop;                               // the garage: LOOK or ACHIEVEMENTS, highlighted row, scroll
+static bool garageNew;                                           // unlocked something since the garage was last opened
+static int nUnlocked, unlocked[4];                               // what the last run unlocked, for the game over screen
 
 /* ---------- controls: go, up and down can be put on any button; the touch screen and Circle Pad always steer ---------- */
 typedef struct { u32 key; const char *name; } KeyName;
@@ -42,7 +46,6 @@ static int lastScore, prevBest; static bool newBest; static const char *causeTxt
 /* ---------- saves: one line per map best, plus the settings ---------- */
 #define SAVE_DIR "sdmc:/3ds/oldmanburn"
 #define SAVE_FILE SAVE_DIR "/save.txt"
-typedef struct { int seed, best; } Best;
 static Best bests[512]; static int nbests;
 static int bestOf(int seed) { for (int i = 0; i < nbests; i++) if (bests[i].seed == seed) return bests[i].best; return 0; }
 static void save(void) {
@@ -105,12 +108,15 @@ void on_over(void) {
   overAt = T; lastScore = g.dist; prevBest = bestOf(curSeed);
   newBest = setBest(curSeed, g.dist);
   perf_ride_end(g.dist);
+  int n = ach_run_end(g.dist, g.cause, curSeed, mode == MODE_DAILY, mode == MODE_OLD, newBest, SEASON, bests, nbests);
+  nUnlocked = n; for (int i = 0; i < n && i < 4; i++) unlocked[i] = ach_new[i];
+  if (n) garageNew = true;
   causeTxt = CAUSES[g.cause][(int)(frand() * 3)];
 }
 static void startRun(void) {
   if (st == ST_OVER) { reseed(curSeed, mode == MODE_DAILY || curSeed >= V2_FROM); }
   newRun(); st = ST_PLAY; paused = false;
-  perf_ride_start(trackName, curSeed);
+  perf_ride_start(trackName, curSeed); ach_run_start();
 #ifdef DEVTEST                                                     // test builds: start far down the road, ride through everything
   simGod = true; g.cam = DEVTEST * M_PX; roadAt(g.cam + g.bx); g.y = RC; g.v = g.P = pace(DEVTEST);
 #endif
@@ -128,11 +134,13 @@ static int nOldWeeks(void) { return liveWeek - 7 >= FIRST_WEEK ? (liveWeek - 7 -
 static int archWeek(int i) { return liveWeek - 7 - i * 7; }      // the old-maps list, newest first
 static const char *modeLabel(void) { return mode == MODE_DAILY ? "Today's Daily Dash" : mode == MODE_OLD ? "Old map" : "This week's track"; }
 
+static void topGarage(void);
 static void topHud(void) {
 #ifdef SHOWCASE
   if (st == ST_TITLE) return;
 #endif
   char b[128], u[128];
+  if (st == ST_TITLE && screen == UI_GARAGE) { topGarage(); return; }
   if (st == ST_TITLE) {                                          // the title column of the web game, over the road
     cv_fill(rgba(10, 6, 18, .72)); cv_rect(0, 0, 230, 240);
     double gs[2] = { 0, 1 }; col_t gc[2] = { rgba(10, 6, 18, .72), rgba(10, 6, 18, 0) };
@@ -157,7 +165,7 @@ static void miniRow(void) {                                      // Settings bot
   ui_button((Box){ 8, 214, 74, 20 }, "Settings", BTN_MINI, 8);
   ui_button((Box){ 238, 214, 74, 20 }, optMusic || optSfx ? "Sound: on" : "Sound: off", BTN_MINI, 8);
 }
-enum { T_RIDE, T_DAILY, T_OLD, T_SETTINGS, T_SOUND };
+enum { T_RIDE, T_DAILY, T_OLD, T_GARAGE, T_SETTINGS, T_SOUND };
 static void bottomTitle(void) {
   ui_panel();
   char b[24], line[96];
@@ -165,7 +173,8 @@ static void bottomTitle(void) {
   ui_text(line, 14, 20, 9, UI_GOLD, AL_LEFT);
   ui_button((Box){ 14, 32, 290, 44 }, "RIDE", BTN_RED, 20);
   ui_button((Box){ 14, 88, 290, 34 }, "DAILY DASH · TODAY'S MAP", BTN_CYAN, 11);
-  ui_button((Box){ 14, 134, 290, 30 }, "OLD MAPS", BTN_ALT, 11);
+  ui_button((Box){ 14, 134, 139, 30 }, "OLD MAPS", BTN_ALT, 11);
+  ui_button((Box){ 165, 134, 139, 30 }, garageNew ? "GARAGE · NEW" : "GARAGE", BTN_ALT, 11);
   miniRow();
   fmtNum(bestOf(DAILY_BASE + liveDay), b);
   snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: a new map every day at noon Pacific", b);
@@ -227,6 +236,11 @@ static void bottomOver(void) {
   else if (newBest) snprintf(line, sizeof line, "A new best. Best I've seen since '73.");
   else snprintf(line, sizeof line, mode == MODE_DAILY ? "Best today: %s" : "Best this week: %s", b);
   ui_text(line, 14, 124, 9, UI_GOLD, AL_LEFT);
+  if (nUnlocked) {
+    const Ach *a = &ACHS[unlocked[0]];
+    snprintf(line, sizeof line, nUnlocked > 1 ? "Unlocked %s (%s) and %d more" : "Unlocked %s (%s)", item_name(a->rw[0].slot, a->rw[0].item), a->name, nUnlocked - 1);
+    ui_text(line, 14, 110, 8, UI_PINK, AL_LEFT);
+  }
   if (T - overAt > 0.6) {
     ui_button((Box){ 14, 142, 186, 38 }, "ONE MORE LAP", BTN_RED, 13);
     ui_button((Box){ 212, 142, 94, 38 }, "MENU", BTN_ALT, 12);
@@ -234,6 +248,107 @@ static void bottomOver(void) {
     ui_text(line, 14, 204, 8, UI_DIM, AL_LEFT);
   }
 }
+
+
+/* ---------- the garage: the look on the bike, and the achievements that unlock it ---------- */
+typedef struct { int stat; const char *name, *unit; } Track;
+static const Track TRACKS[] = {                                   // one row per stat, grouped as the web's garage groups them
+  { ST_TOTAL_M, "Total distance", " m" }, { ST_BEST_M, "Longest ride", " m" }, { ST_CLEAN_M, "Clean ride", " m" },
+  { ST_RUNS, "Rides finished", "" }, { ST_RIDES_500, "Rides of 500 m or more", "" }, { ST_WEEKS_PLAYED, "Weeks ridden", "" }, { ST_NIGHT_RUNS, "Night rides", "" },
+  { ST_WHEELIE_S, "Wheelie time", " s" }, { ST_RUN_WHEELIE, "Wheelie in one run", " s" }, { ST_SAND_S, "Time in the dirt", " s" },
+  { ST_GAPS, "Gaps passed", "" }, { ST_RUN_GAPS, "Gaps in one run", "" }, { ST_RAILS, "Barricades passed", "" }, { ST_RUN_RAILS, "Barricades in one run", "" },
+  { ST_SWERVES, "Swerves", "" }, { ST_CRASH_RAIL, "Wall hits", "" }, { ST_CRASH_BEHIND, "Slid off the back", "" }, { ST_CRASH_AHEAD, "Shot off the front", "" },
+  { ST_ENDS_52, "Runs ending in 52", "" }, { ST_WEEKS_5K, "Weekly maps over 5,000", "" }, { ST_PBS, "New bests", "" }, { ST_OLD_3K, "3,000 on an old map", "" },
+  { ST_DAILY_RUNS, "Daily Dash runs", "" }, { ST_DAILY_DAYS, "Daily Dash days", "" }, { ST_DAILY_STREAK, "Daily Dash streak", " days" },
+  { ST_DAILY_2K_DAYS, "Daily Dash days over 2,000", "" }, { ST_DAILY_1K, "Daily Dash runs over 1,000", "" }, { ST_DAILY_BEST, "Daily Dash best", "" },
+  { ST_HALLOWEEN_RUNS, "Halloween rides", "" }, { ST_HALLOWEEN_3K, "3,000 on a Halloween map", "" },
+  { ST_CHRISTMAS_RUNS, "Christmas rides", "" }, { ST_CHRISTMAS_3K, "3,000 on a Christmas map", "" } };
+#define NTRACK (int)(sizeof TRACKS / sizeof TRACKS[0])
+static int trackTiers(int t, int *out) {                          // the track's achievements, easiest first
+  int n = 0;
+  for (int a = 0; a < NACH; a++) if (ACHS[a].stat == TRACKS[t].stat) {
+    int j = n++; while (j > 0 && ACHS[out[j - 1]].goal > ACHS[a].goal) { out[j] = out[j - 1]; j--; } out[j] = a;
+  }
+  return n;
+}
+static void statStr(int t, double v, char *out) { char b[24]; fmtNum((int)v, b); snprintf(out, 32, "%s%s", b, TRACKS[t].unit); }
+enum { G_BACK, G_LOOK, G_ACH };
+static void garageTabs(void) {
+  cv_fill(H(150c26)); cv_rect(0, 0, 320, 240);
+  ui_heading("GARAGE", 14, 30, 22, AL_LEFT);
+  ui_button((Box){ 236, 10, 70, 24 }, "BACK", BTN_RED, 10);
+  ui_button((Box){ 124, 12, 50, 20 }, "Look", BTN_MINI, 8);
+  ui_button((Box){ 178, 12, 52, 20 }, "Goals", BTN_MINI, 8);
+  cv_fill(UI_CYAN); cv_rect(garTab ? 178 : 124, 33, garTab ? 52 : 50, 2);
+}
+static void bottomGarage(void) {
+  garageTabs();
+  char line[96], a[32];
+  if (garTab == 0) {
+    for (int sl = 0; sl < NSLOT; sl++) {
+      double y = 42 + sl * 19; Box bx = { 10, y, 300, 18 };
+      int id = ui_hot(bx); bool f = sl == garSel; (void)id;
+      if (f) { cv_fill(rgba(34, 230, 216, .10)); cv_rect(bx.x, bx.y, bx.w, bx.h); }
+      ui_text(SLOT_NAMES[sl], 16, y + 12, 9, f ? UI_BONE : 0xcfc9e0ffu, AL_LEFT);
+      bool more = slot_owned(sl) > 0;
+      ui_text("‹", 94, y + 12, 10, more ? UI_PINK : UI_DIM, AL_CENTER); ui_text("›", 254, y + 12, 10, more ? UI_PINK : UI_DIM, AL_CENTER);
+      ui_text(item_name(sl, look_get(sl)), 174, y + 12, 9, *look_get(sl) ? UI_GOLD : UI_SUB, AL_CENTER);
+      snprintf(line, sizeof line, "%d/%d", slot_owned(sl), slot_total(sl)); ui_text(line, 304, y + 12, 8, UI_DIM, AL_RIGHT);
+    }
+    snprintf(line, sizeof line, "%d of %d achievements · left / right changes", ach_count(), NACH);
+    ui_text(line, 14, 228, 8, UI_DIM, AL_LEFT);
+    return;
+  }
+  if (garSel >= NTRACK) garSel = NTRACK - 1;
+  if (garSel < garTop) garTop = garSel;
+  if (garSel > garTop + 4) garTop = garSel - 4;
+  for (int r = 0; r < 5 && garTop + r < NTRACK; r++) {
+    int t = garTop + r, tiers[16], n = trackTiers(t, tiers), done = 0; double v = stats[TRACKS[t].stat];
+    for (int i = 0; i < n; i++) done += ach_done(tiers[i]);
+    Box bx = { 10, 42 + r * 30, 300, 28 }; ui_hot(bx); bool f = t == garSel;
+    cv_fill(rgba(255, 255, 255, f ? .08 : .04)); cv_rect(bx.x, bx.y, bx.w, bx.h);
+    cv_stroke_rect(bx.x + .5, bx.y + .5, bx.w - 1, bx.h - 1, f ? UI_CYAN : done == n ? 0x6a5a20ffu : 0x2a1a44ffu, 1);
+    ui_text(TRACKS[t].name, 16, bx.y + 11, 9, UI_BONE, AL_LEFT);
+    snprintf(line, sizeof line, "%d/%d", done, n); ui_text(line, 304, bx.y + 11, 8, done == n ? UI_GOLD : UI_DIM, AL_RIGHT);
+    int next = -1; for (int i = 0; i < n; i++) if (!ach_done(tiers[i])) { next = tiers[i]; break; }
+    double goal = next >= 0 ? ACHS[next].goal : ACHS[tiers[n - 1]].goal, k = clampd(v / goal, 0, 1);
+    cv_fill(0x241838ffu); cv_rect(16, bx.y + 18, 150, 4); cv_fill(next >= 0 ? UI_PINK : UI_GOLD); cv_rect(16, bx.y + 18, 150 * k, 4);
+    statStr(t, v, a); char gs[32]; statStr(t, goal, gs);
+    snprintf(line, sizeof line, next >= 0 ? "%s / %s" : "%s · all done", a, gs); ui_text(line, 304, bx.y + 23, 8, UI_SUB, AL_RIGHT);
+  }
+  snprintf(line, sizeof line, "%d of %d achievements · the top screen lists each goal", ach_count(), NACH);
+  ui_text(line, 14, 228, 8, UI_DIM, AL_LEFT);
+}
+static void topGarage(void) {                                      // the bike up close, or the selected goal's tiers
+  char line[128];
+  cv_fill(rgba(10, 6, 18, .78)); cv_rect(0, 0, LW, LH);
+  if (garTab == 0) {
+    ui_kicker("THE GARAGE", 16, 26, UI_CYAN);
+    ui_heading(SLOT_NAMES[garSel], 16, 62, 26, AL_LEFT);
+    ui_text(item_name(garSel, look_get(garSel)), 16, 86, 11, UI_GOLD, AL_LEFT);
+    if (*look_get(garSel)) { fmtNum((int)cos_meters(garSel), line); strcat(line, " m ridden in it"); ui_text(line, 16, 104, 9, UI_SUB, AL_LEFT); }
+    else ui_text("The Old Man's own.", 16, 104, 9, UI_SUB, AL_LEFT);
+    if (slot_owned(garSel) == 0) ui_wrap("Nothing unlocked here yet. The Goals tab says what unlocks what.", 16, 124, 9, UI_DIM, 190);
+    cv_fill(rgba(255, 210, 31, .10)); cv_rect(200, 244, 280, 4);
+    look_preview(310, 244, 2.3);
+    return;
+  }
+  int tiers[16], n = trackTiers(garSel, tiers);
+  ui_kicker("GOALS", 16, 26, UI_CYAN);
+  ui_heading(TRACKS[garSel].name, 16, 58, 22, AL_LEFT);
+  int first = 0; while (first < n && ach_done(tiers[first])) first++;
+  first = first - 2 < 0 ? 0 : first - 2; if (first > n - 7) first = n - 7 < 0 ? 0 : n - 7;   // seven tiers fit: keep the next one in view
+  for (int i = first; i < n && i < first + 7; i++) {
+    const Ach *a = &ACHS[tiers[i]]; bool d = ach_done(tiers[i]); double y = 82 + (i - first) * 25;
+    ui_check(18, y, d);
+    snprintf(line, sizeof line, "%s · %s", a->name, item_name(a->rw[0].slot, a->rw[0].item));
+    if (a->nrw > 1) { char m[24]; snprintf(m, sizeof m, " +%d more", a->nrw - 1); strcat(line, m); }
+    ui_text(line, 34, y + 8, 10, d ? UI_GOLD : UI_BONE, AL_LEFT);
+    ui_text(a->desc, 34, y + 19, 8, UI_SUB, AL_LEFT);
+  }
+  if (n > 7) { char m[32]; snprintf(m, sizeof m, "%d-%d of %d", first + 1, first + 7 < n ? first + 7 : n, n); ui_text(m, 464, 26, 8, UI_DIM, AL_RIGHT); }
+}
+static void openGarage(void) { backTo = UI_TITLE; screen = UI_GARAGE; garageNew = false; ui_reset_focus(); }
 
 /* ---------- settings: a panel like the web's, with sliders for steering ---------- */
 enum { S_MUSIC, S_SFX, S_DPAD, S_TOUCH, S_CLOCK, S_GO, S_UP, S_DOWN, S_RESET, S_CLOSE, NS };
@@ -301,6 +416,7 @@ int main(void) {
   gfx_init();
   srand((unsigned)osGetTime());
   load();
+  ach_load(); ach_bests(bests, nbests);
   draw_init();
   gfx_build(draw_sprites);
   audio_init(); audio_set(optMusic, optSfx);
@@ -333,6 +449,13 @@ int main(void) {
           ui_set_focus(setHot[r]);
         }
       }
+    } else if (st == ST_TITLE && screen == UI_GARAGE) {
+      if (kd & KEY_B) { screen = UI_TITLE; ui_reset_focus(); kd = 0; }
+      if (kd & (KEY_L | KEY_R)) { garTab ^= 1; garSel = garTop = 0; }
+      int n = garTab ? NTRACK : NSLOT;
+      if (kd & (KEY_DOWN | KEY_UP)) { garSel += (kd & KEY_DOWN) ? 1 : -1; if (garSel < 0) garSel = 0; if (garSel >= n) garSel = n - 1; }
+      if (garTab == 0 && (kd & (KEY_LEFT | KEY_RIGHT))) ach_wear(garSel, (kd & KEY_RIGHT) ? 1 : -1);
+      kd &= ~(KEY_DOWN | KEY_UP | KEY_LEFT | KEY_RIGHT | KEY_A);  // the rows move by themselves; buttons are tapped
     } else if (st == ST_TITLE && screen == UI_ARCHIVE) {
       int n = nOldWeeks();
       if (kd & KEY_B) { screen = UI_TITLE; enterMode(MODE_WEEK); ui_reset_focus(); kd = 0; }
@@ -371,13 +494,17 @@ int main(void) {
         menus = true;
       }
     }
-    update(dt, &in); perf_mark(PF_SIM);
+    bool riding = st == ST_PLAY && !paused;
+    update(dt, &in);
+    if (riding && st == ST_PLAY) { ach_run_tick(dt); look_trail(dt); }
+    perf_mark(PF_SIM);
     audioBufs = audio_tick(); perf_mark(PF_AUDIO);
 #ifdef SHOWCASE                                                    // test builds: hold the title scene at the garage for the banner
     if (st == ST_TITLE) { if (SEASON) { SEASON = 0; look_apply(); } g.cam = SHOWCASE; }
 #endif
 
     gfx_frame_begin(); perf_mark(PF_WAIT);
+    look_frame();
     char hint[48]; snprintf(hint, sizeof hint, "HOLD %s, SONNY. KEEP UP.", keyName(binds[BIND_GO]));
     for (char *c = hint; *c; c++) if (*c >= 'a' && *c <= 'z') *c -= 32;
     render_game(st == ST_PLAY && g.t < 5 ? hint : NULL);
@@ -388,6 +515,7 @@ int main(void) {
     int shown = screen == UI_SETTINGS ? UI_SETTINGS : st == ST_TITLE ? screen : -1;
     if (shown == UI_SETTINGS) bottomSettings();
     else if (shown == UI_ARCHIVE) bottomArchive();
+    else if (shown == UI_GARAGE) bottomGarage();
     else if (shown == UI_TITLE) bottomTitle();
     else if (st == ST_OVER) bottomOver();
     else bottomPlay(touchY);
@@ -413,8 +541,16 @@ int main(void) {
         if (p == T_RIDE) ridePicked(MODE_WEEK);
         else if (p == T_DAILY) ridePicked(MODE_DAILY);
         else if (p == T_OLD) { screen = UI_ARCHIVE; archSel = 0; archTop = 0; ui_reset_focus(); if (nOldWeeks()) { oldWeek = archWeek(0); enterMode(MODE_OLD); } }
+        else if (p == T_GARAGE) openGarage();
         else if (p == T_SETTINGS) openSettings();
         else if (p == T_SOUND) toggleSound();
+      } else if (shown == UI_GARAGE) {
+        if (p == G_BACK) { screen = UI_TITLE; ui_reset_focus(); }
+        else if (p == G_LOOK || p == G_ACH) { garTab = p == G_ACH; garSel = garTop = 0; }
+        else if (garTab == 0) {                                  // a slot row: the left half goes back, the right half on
+          int sl = p - 3; garSel = sl;
+          if ((kd & KEY_TOUCH) && tp.px < 140) ach_wear(sl, -1); else if (kd & KEY_TOUCH) ach_wear(sl, 1);
+        } else garSel = garTop + (p - 3);
       } else if (shown == UI_ARCHIVE) {
         if (p == 0) { screen = UI_TITLE; enterMode(MODE_WEEK); ui_reset_focus(); }
         else { int i = archTop + (p - 1); if (i < nOldWeeks()) { archSel = i; oldWeek = archWeek(i); ridePicked(MODE_OLD); } }
