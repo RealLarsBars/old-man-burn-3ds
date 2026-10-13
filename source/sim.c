@@ -63,6 +63,7 @@ static void ensure(int i) {
 int mapDay(void) { return SEED >= DAILY_BASE ? SEED - DAILY_BASE : SEED; }
 static bool sw3(void) { return mapDay() >= SW3_FROM; }
 static bool sw4(void) { return mapDay() >= (SEED >= DAILY_BASE ? SW4_DAILY_FROM : SW4_FROM); }
+static bool splits(void) { return mapDay() >= (SEED >= DAILY_BASE ? SPLIT_DAILY_FROM : SPLIT_FROM); }
 bool thinRails(void) { return mapDay() >= THIN_RAILS_FROM; }
 #define RAIL_BAND 3
 
@@ -88,6 +89,11 @@ static bool busyRoad(double x, double len) {
   if (useH && busyIn(holds.a, holds.n, lbSpans(&holds, x - LOOK), x, len, ph)) return true;
   return false;
 }
+// The road's centre line before swerves (roadAt without swOff or the clamp).
+static double baseAt(double x) { double f = x / S_; int i = (int)floor(f); ensure(i + 1); double t = f - i; return wp[i] + (wp[i + 1] - wp[i]) * (1 - cos(M_PI * t)) / 2; }
+static double splitLand(double dir, double b1, double f) {    // where a split puts swLevel: 28 to 42 px past the middle
+  return clampd(swLevel + dir * fmax(40, (189 + dir * (28 + f * 14) - b1 - swLevel) * dir), -60, 60);
+}
 static void genSw(double x) {
   while (swCursor < x) {
     int k = swK++; double m = swCursor / M_PX;
@@ -100,7 +106,15 @@ static void genSw(double x) {
     if (s4) { genTo(swCursor + 1500);                                          // a set piece's swerve goes exactly where it was planned
       if (swCi < ncombos && combos[swCi].x <= swCursor) {
         Combo *c = &combos[swCi]; swCi++;
-        if (c->x < from) { rails[c->rail].side = R(4) < 0.5 ? 0 : 1; swCursor = from; continue; }   // (never expected) its spot was already taken
+        if (c->x < from) { if (c->rail >= 0) rails[c->rail].side = R(4) < 0.5 ? 0 : 1; swCursor = from; continue; }   // (never expected) its spot was already taken
+        if (c->rail < 0) {                                                       // a split: the road jumps across the screen inside the gap
+          double b0 = baseAt(c->x), b1 = baseAt(c->x + c->len), cur = clampd(b0 + swLevel, 138, 236), d0 = cur > 189 ? -1 : 1, f = R(3);
+          double l0 = splitLand(d0, b1, f), l1 = splitLand(-d0, b1, f);
+          double m0 = fabs(clampd(b1 + l0, 138, 236) - cur), m1 = fabs(clampd(b1 + l1, 138, 236) - cur);
+          double to = m0 >= 40 || m0 >= m1 ? l0 : l1;                            // high road comes back low and low comes back high, if there's room
+          swPush((Swerve){ c->x, c->len, swLevel, to }); swLevel = to; swCursor = c->x + c->len; swRetry = false;
+          continue;
+        }
         double dir = swLevel > 10 ? -1 : swLevel < -10 ? 1 : (R(3) < 0.5 ? 1 : -1), to = clampd(swLevel + dir * fmax(mag, 30), -40, 40);
         rails[c->rail].side = to > swLevel ? 0 : 1;                                // the wall goes on the side the road just left
         swPush((Swerve){ c->x, c->len, swLevel, to }); swLevel = to; swCursor = c->x + c->len; swRetry = false;
@@ -125,6 +139,13 @@ void roadAt(double x) {
   RC = clampd(wp[i] + (wp[i + 1] - wp[i]) * s + (V2 ? swOff(x) : 0), 138, 236); RW = fmax(34, 46 - x / M_PX * 0.003);
 }
 static int railNew(double x, double len, int side) { return railPush((Rail){ x, len, side, 0, -1 }); }
+// A split gap: the road swerves inside it (laid down by genSw). Guarded ones get a stub of guardrail on each side.
+static void splitGap(double x, double len, bool guarded) {
+  spanPush(&gaps, x, len);
+  if (guarded) { spanPush(&edges, x - 100, 100); spanPush(&edges, x + len, 100); }
+  if (ncombos == comboCap) { comboCap = comboCap ? comboCap * 2 : 64; combos = realloc(combos, comboCap * sizeof(Combo)); }
+  combos[ncombos++] = (Combo){ x, len, -1 };
+}
 static double barricadeLen(double m, double P, double f) { return rnd((240 + f * (140 + fmin(m * 0.05, 200))) * P / 170); }
 // From the maps of 2026-10-18 on (sw4) the road is built in phrases: gauntlets of gaps, rests and set pieces.
 static void genPhrase(void) {
@@ -132,10 +153,16 @@ static void genPhrase(void) {
   #define R(a) hash(SEED, 50000 + k * 13 + (a))
   if (!phRest) {                                               // after every gauntlet or set piece comes a rest
     phRest = true;
-    if (k > 0 && m >= 600 && R(1) < 0.4) {                     // some rests have a barricade along one edge instead of swerves
+    if (k > 0 && m >= 600 && R(1) < 0.4 && !(k == 2 && splits())) {   // some rests have a barricade along one edge instead of swerves
       double len = barricadeLen(m, P, R(2));
       cursor += rnd(0.8 * P); railNew(cursor, len, R(3) < 0.5 ? 0 : 1); cursor += len + rnd(0.8 * P);
-    } else cursor += rnd((k == 0 ? 1.5 + R(0) : fmax(2.6, 5.5 - m / 1500) + R(0) * 1.5) * P);   // ~6 s early, ~3 s late
+    } else {
+      double rest = rnd((k == 0 ? 1.5 + R(0) : fmax(2.6, 5.5 - m / 1500) + R(0) * 1.5) * P);   // ~6 s early, ~3 s late
+      if (splits() && k > 0 && (k == 2 || R(8) < 0.55)) {        // a lone split gap in the middle of the rest, with no guardrails
+        double len = rnd((0.6 + R(9) * 0.3) * P), lead = rnd(1.2 * P + R(10) * 0.4 * P);
+        splitGap(cursor + lead, len, false); cursor += fmax(rest, lead + len + rnd(1.4 * P));
+      } else cursor += rest;
+    }
     return;
   }
   phRest = false;
@@ -150,11 +177,14 @@ static void genPhrase(void) {
     return;
   }
   // A gauntlet: 2 or 3 gaps early, up to 6 late, every one boxed in by guardrails.
+  // On split maps a later gauntlet now and then ends in a split: its guardrails stop at the gap and pick up on the new road.
   int n = m < 1500 ? 2 + (R(7) < 0.5) : m < 3000 ? 3 + (R(7) < 0.5) : 4 + (int)floor(R(7) * 3);
+  bool lastSplits = splits() && m >= 1200 && R(11) < 0.3;
   for (int i = 0; i < n; i++) {
     double mi = cursor / M_PX, Pi = pace(mi), q = hash(SEED, 60000 + k * 17 + i);
     double len = rnd((i % 2 == 0 ? 0.55 + q * 0.3 : 0.9 + q * 0.25 + clampd((mi - 1000) / 6000, 0, 1) * 0.5) * Pi);
-    spanPush(&gaps, cursor, len); spanPush(&edges, cursor - 100, len + 200);
+    if (lastSplits && i == n - 1) splitGap(cursor, len, true);
+    else { spanPush(&gaps, cursor, len); spanPush(&edges, cursor - 100, len + 200); }
     cursor += len;
     if (i < n - 1) { double road = rnd((0.85 + hash(SEED, 61000 + k * 17 + i) * 0.25) * Pi);
       spanPush(&holds, cursor, road); cursor += road; }                 // swerves stay out of a gauntlet
