@@ -14,7 +14,9 @@ Wi-Fi it shares your profile, puts weekly runs on the board and uploads replays.
 
 ## Installing
 
-Either file works on a 3DS with custom firmware:
+Download the newest build from [Releases](https://github.com/RealLarsBars/old-man-burn-3ds/releases/latest). Every change
+to `main` builds both files and publishes a new release (`.github/workflows/release.yml`). Either file works on a 3DS
+with custom firmware:
 
 - **OldManBurn.cia**: install it with FBI (or any CIA installer) and it shows up on the HOME Menu.
 - **OldManBurn.3dsx**: copy it to `sdmc:/3ds/` and start it from the Homebrew Launcher.
