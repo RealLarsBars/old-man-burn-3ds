@@ -15,6 +15,7 @@
 #define DIR_ "sdmc:/3ds/oldmanburn"
 #define LINK_FILE DIR_ "/link.txt"
 #define OUTBOX DIR_ "/outbox"
+#define BOARD_FILE DIR_ "/board.json"
 enum { K_STATE = 1, K_LINK, K_RUN, K_LOADOUT };
 static char token[80], name[64], auth[96], status[64] = "Not linked to Discord";
 static bool linked, haveClock, loadoutDirty, sending;
@@ -41,10 +42,11 @@ static void loadLink(void) {
   fclose(f);
   snprintf(auth, sizeof auth, "Device %s", token);
 }
+static void loadBoards(void);
 static void askState(void) { if (linked && net_send(K_STATE, "GET", "/api/3ds/state", NULL, auth)) { lastState = osGetTime(); setStatus("Syncing with Discord..."); } }
 
 void sync_init(void) {
-  net_init(); loadLink();
+  net_init(); loadLink(); if (linked) loadBoards();
   if (linked) { setStatus("Linked, connecting..."); askState(); }
 }
 void sync_exit(void) { net_exit(); }
@@ -73,12 +75,52 @@ static void applyProfile(json_t *p) {
     ach_save();
   }
 }
+/* ---------- the leaderboards from Discord (kept on the SD card, so they still show offline) ---------- */
+static BoardRow boards[2][5]; static int nBoard[2] = { -1, -1 }, boardWeek[2], sPot; static char myId[24];
+static void readBoard(int k, json_t *a, int id) {
+  if (!json_is_array(a)) return;
+  size_t i; json_t *v; nBoard[k] = 0; boardWeek[k] = id;
+  json_array_foreach(a, i, v) {
+    if (nBoard[k] >= 5) break;
+    BoardRow *r = &boards[k][nBoard[k]++];
+    const char *nm = json_string_value(json_object_get(v, "name")), *src = json_string_value(json_object_get(v, "src")),
+               *uid = json_string_value(json_object_get(v, "user_id"));
+    snprintf(r->name, sizeof r->name, "%.12s", nm ? nm : "Rider");   // 12 letters, like the Discord board
+    r->score = json_integer_value(json_object_get(v, "score"));
+    r->ds = src && !strcmp(src, "3ds"); r->me = uid && myId[0] && !strcmp(uid, myId);
+  }
+}
+static void applyBoards(json_t *j) {
+  const char *id = json_string_value(json_object_get(j, "id")); if (id) snprintf(myId, sizeof myId, "%s", id);
+  json_t *w = json_object_get(j, "week"), *d = json_object_get(j, "day");
+  if (!json_is_integer(w) || !json_is_integer(d)) return;
+  readBoard(0, json_object_get(j, "board"), json_integer_value(w));
+  readBoard(1, json_object_get(j, "daily_board"), json_integer_value(d));
+  sPot = json_integer_value(json_object_get(j, "pot"));
+}
+static void saveBoards(json_t *j) {
+  json_t *b = json_object();
+  const char *keys[] = { "id", "week", "day", "board", "daily_board", "pot" };
+  for (int i = 0; i < 6; i++) { json_t *v = json_object_get(j, keys[i]); if (v) json_object_set(b, keys[i], v); }
+  json_dump_file(b, BOARD_FILE, JSON_COMPACT); json_decref(b);
+}
+static void loadBoards(void) {
+  json_error_t err; json_t *j = json_load_file(BOARD_FILE, 0, &err);
+  if (j) { applyBoards(j); json_decref(j); }
+}
+int sync_board(bool daily, int id, const BoardRow **rows, int *pot) {
+  int k = daily;
+  if (!linked || nBoard[k] < 0 || boardWeek[k] != id) return -1;   // none yet, or a saved one from a week that's over
+  *rows = boards[k]; *pot = sPot; return nBoard[k];
+}
+
 static void applyState(json_t *j) {
   json_t *w = json_object_get(j, "week"), *d = json_object_get(j, "day");
   if (json_is_integer(w) && json_is_integer(d)) { sWeek = json_integer_value(w); sDay = json_integer_value(d); haveClock = true; }
   const char *nm = json_string_value(json_object_get(j, "name"));
   if (nm && strcmp(nm, name)) { snprintf(name, sizeof name, "%s", nm); saveLink(); }
   json_t *p = json_object_get(j, "profile"); if (json_is_object(p)) applyProfile(p);
+  if (json_is_array(json_object_get(j, "board"))) { applyBoards(j); saveBoards(j); }
 }
 
 /* ---------- the outbox: one JSON file per finished run, sent oldest first ---------- */
@@ -142,6 +184,7 @@ void sync_link_prompt(void) {
 void sync_unlink(void) {
   linked = false; token[0] = name[0] = 0; haveClock = false;
   memset(ach_server, 0, sizeof ach_server); saveLink(); setStatus("Not linked to Discord");
+  nBoard[0] = nBoard[1] = -1; myId[0] = 0; remove(BOARD_FILE);
 }
 void sync_loadout_changed(void) {
   if (!linked) return;
@@ -173,6 +216,7 @@ void sync_tick(bool menus) {
       sending = false;
       if (ok) {
         remove(sending_file); setStatus("Sent to Discord: it's in 3DS RIDES");
+        lastState = 0;                                             // fetch the board again: this ride may be on it
         json_t *p = json_object_get(j, "profile"); if (json_is_object(p)) applyProfile(p);
         sendOutbox();
       } else if (r.status >= 400 && r.status < 500 && r.status != 401 && r.status != 429) {   // the server won't take it: don't retry forever
