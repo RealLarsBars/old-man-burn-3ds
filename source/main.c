@@ -631,6 +631,7 @@ int main(void) {
     look_frame();
     char hint[48]; snprintf(hint, sizeof hint, "HOLD %s, SONNY. KEEP UP.", keyName(binds[BIND_GO]));
     for (char *c = hint; *c; c++) if (*c >= 'a' && *c <= 'z') *c -= 32;
+    draw_best_m = bestOf(curSeed);
     render_game(st == ST_PLAY && g.t < 5 ? hint : NULL);
     gfx_top_begin();
     topHud();
