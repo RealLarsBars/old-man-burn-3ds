@@ -787,7 +787,7 @@ void look_over(void) {
   if (fCat) drawCatPal();
 }
 void look_frame(void) {
-  if (!dirty && !(fAnim && (T - lastBuild >= 0.1 || T < lastBuild))) return;
+  if (!dirty && !(fAnim && (T - lastBuild >= 0.2 || T < lastBuild))) return;   // animated items: 5 redraws a second
   look_sprite(); spr_end();
 }
 
@@ -825,13 +825,16 @@ static void emitTrail(double dt, Emit *e) {
   const char *k = cur[SL_TRAIL]; if (!*k) return;
   double (*R)(void) = e->R, wx = e->cam + e->bx, gy = e->y, B = BIKE_SCALE;
   double ex = wx - 32 * B, ey = gy - 5 * B, rw = wx - 17 * B;    // exhaust tip and rear-wheel contact patch
-  if (!strcmp(k, "rainbow")) {                                  // one solid ribbon: each slice is as wide as a frame's travel
-    static const col_t cols[6] = { H(ff2d2d), H(ff9a1f), H(ffe14a), H(4dff7a), H(3db7ff), H(a35bff) };
-    double w = ceil(e->P * dt) + 2, wave = rnd(sin(T * 7) * 1.4);
-    for (int i = 0; i < 6; i++) { Part *p = newPart(e); if (!p) return; p->x = wx - 20 * B; p->y = gy - 19 * B + i * 2 + wave; p->life = p->max = 0.9; p->c = cols[i]; p->s = 2; p->w = w; }
+  if (!strcmp(k, "rainbow")) {                                  // one solid ribbon. The web lays a slice every frame; here every
+    static const col_t cols[6] = { H(ff2d2d), H(ff9a1f), H(ffe14a), H(4dff7a), H(3db7ff), H(a35bff) };   // third frame, three times as
+    static double rbAcc, rbLast; rbAcc += dt; if (rbAcc < 3 / 60.0 - 1e-6) return;                       // wide: a third of the rects on an Old 3DS
+    double moved = wx - rbLast; if (moved < 0 || moved > 80) moved = e->P * rbAcc;                         // as wide as the bike went since the last
+    double w = ceil(moved) + 2, wave = rnd(sin(T * 7) * 1.4); rbAcc = 0; rbLast = wx;
+    for (int i = 0; i < 6; i++) { Part *p = newPart(e); if (!p) return; p->x = wx - 20 * B - (w - 2); p->y = gy - 19 * B + i * 2 + wave; p->life = p->max = 0.9; p->c = cols[i]; p->s = 2; p->w = w; }
     return;
   }
-  double rate = !strcmp(k, "sparks") ? 110 : !strcmp(k, "flames") ? 150 + 60 * e->thr : !strcmp(k, "gold") ? 34 : !strcmp(k, "lines") ? 38 : !strcmp(k, "coins") ? 26
+  // sparks and flames at about half the web's rate, for the Old 3DS
+  double rate = !strcmp(k, "sparks") ? 60 : !strcmp(k, "flames") ? 80 + 30 * e->thr : !strcmp(k, "gold") ? 34 : !strcmp(k, "lines") ? 38 : !strcmp(k, "coins") ? 26
               : !strcmp(k, "bubbles") ? 22 : !strcmp(k, "smoke") ? 7 : !strcmp(k, "bats") ? 7 : !strcmp(k, "snow") ? 34 : 0;
   *e->acc += dt * rate;
   while (*e->acc >= 1) {
