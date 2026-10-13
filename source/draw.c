@@ -457,6 +457,34 @@ static void drawPier(double camX) {
   cv_fill(H(ffffff));                                            // gulls
   for (int i = 0; i < 4; i++) { double x = rnd(jmod(jmod(hash(i, 90) * LW - T * 20, LW) + LW, LW)), y = rnd(20 + hash(i, 91) * 30); int up = sin(T * 6 + i) > 0 ? 0 : 1; F(x - 3, y + up, 3, 1); F(x, y, 1, 1); F(x + 1, y + up, 3, 1); }
 }
+static const struct { char ch; uint16_t b; } GLYPHS[] = { { 'S', 0x79cf }, { 'P', 0x7be4 }, { 'E', 0x79e7 }, { 'D', 0x6b6e }, { 'L', 0x4927 }, { 'I', 0x7497 }, { 'M', 0x5fed },
+  { 'T', 0x7492 }, { '0', 0x7b6f }, { '1', 0x2c97 }, { '2', 0x73e7 }, { '3', 0x73cf }, { '4', 0x5bc9 }, { '5', 0x79cf }, { '6', 0x79ef } };
+static void pixText(const char *str, double x, double y, col_t col, int k) {   // 3x5 pixel letters, scaled by k, so small signs stay sharp
+  cv_fill(col);
+  for (; *str; str++, x += 4 * k) {
+    unsigned b = 0; for (unsigned q = 0; q < sizeof GLYPHS / sizeof GLYPHS[0]; q++) if (GLYPHS[q].ch == *str) b = GLYPHS[q].b;
+    for (int r = 0; r < 5; r++) for (int c = 0; c < 3; c++) if (b >> (14 - r * 3 - c) & 1) F(x + c * k, y + r * k, k, k);
+  }
+}
+static void speedSign(double wx, double camX, int i) {          // a white speed limit sign on a post at the top edge of the road
+  roadAt(wx); double x = rnd(wx - camX), y = rnd(RC - RW / 2 - 3);
+  if (x < -20 || x > LW + 20) return;
+  R(x, y - 12, 2, 12, H(8a8a96)); R(x - 11, y - 39, 25, 28, H(14101f)); R(x - 10, y - 38, 23, 26, H(f4f0e8));
+  pixText("SPEED", x - 8, y - 36, H(14101f), 1); pixText("LIMIT", x - 8, y - 30, H(14101f), 1);
+  static const char *const lim[5] = { "25", "35", "45", "55", "65" }; pixText(lim[(int)(hash(i, 404) * 5)], x - 6, y - 23, H(14101f), 2);
+}
+static void sandcastle(double sx, double oy, double sz) {       // a sandcastle: a keep with towers, a waving flag, a moat and a bucket and spade
+  bool big = sz > 0.55; col_t S = H(e0c890), L = H(f0dcac), D = H(b89c64);
+  #define TOWER(x, w, h) do { R(x, oy - (h), w, h, S); R(x, oy - (h), 1, h, L); R((x) + (w) - 1, oy - (h), 1, h, D); for (int q = 0; q < (w); q += 2) R((x) + q, oy - (h) - 2, 1, 2, S); } while (0)
+  R(sx - 13, oy - 1, 27, 2, H(5ab0d0)); R(sx - 13, oy - 1, 27, 1, H(9ad8f0));   // the moat
+  if (big) { TOWER(sx - 11, 6, 12); TOWER(sx + 6, 6, 12); TOWER(sx - 5, 11, 9); TOWER(sx - 2, 5, 17); R(sx - 1, oy - 5, 3, 4, H(8a6a3a)); R(sx - 1, oy - 6, 3, 1, H(7a5a2a)); }
+  else { TOWER(sx - 7, 5, 8); TOWER(sx + 3, 5, 8); TOWER(sx - 3, 7, 6); TOWER(sx - 1, 3, 11); }
+  #undef TOWER
+  double top = oy - (big ? 19 : 13); int wv = sin(T * 6 + sz * 20) > 0 ? 1 : 0; col_t fl = sz < 0.3 || (sz > 0.55 && sz < 0.8) ? H(ff4a4a) : H(3ab0ff);
+  R(sx, top - 7, 1, 7, H(6a4a2a)); R(sx + 1, top - 7 + wv, 4, 2, fl); R(sx + 4, top - 6 - wv, 1, 1, fl);
+  for (int q = 0; q < 3; q++) R(sx - 9 + q * 7, oy - 3 - (q & 1), 1, 1, H(f4f0e8));   // shells pressed into the walls
+  if (sz > 0.4) { R(sx + 15, oy - 5, 5, 5, H(ff8a3a)); R(sx + 15, oy - 5, 5, 1, H(ffb070)); R(sx + 16, oy - 7, 3, 1, H(ff8a3a)); R(sx + 21, oy - 9, 1, 8, H(3ab0ff)); R(sx + 20, oy - 2, 3, 2, H(3ab0ff)); }   // a bucket and spade
+}
 static void drawThemeRoad(double camX, int th) {
   const Theme *C = &THEMES[th - FIRST_THEME];
   enum { N = 122 };
@@ -479,6 +507,7 @@ static void drawThemeRoad(double camX, int th) {
       cv_pattern(PAT_G0, l, y, r - l, h);
       if (th == TH_NEON) R(l, y, r - l, h, rgba(80, 140, 220, .35));   // a flooded stretch of road
     }
+    if (th == TH_NEON) speedSign(gx - 34, camX, i);            // a speed limit sign before each flooded stretch
     if (th == TH_LIBRARY) for (int q = 0; q < 14; q++) { roadAt(gx + hash(i, q) * gl); R(rnd(sx + hash(i, q) * gl), rnd(RC - RW / 2 + hash(i, q + 50) * RW), 4, 3, q % 3 ? H(f2ead2) : H(d8ccb0)); }   // loose pages
   }
 }
@@ -519,9 +548,9 @@ static void drawThemeDecor(int th, double sx, double oy, double sz, double ty) {
     else if (ty < 0.7) { static const col_t cans[3] = { H(ff3a3a), H(ffd21f), H(3ab0ff) }; R(sx - 4, oy - 14, 9, 14, H(d83a5a)); R(sx - 3, oy - 13, 7, 6, H(9ad8ff)); for (int q = 0; q < 3; q++) R(sx - 2 + q * 2, oy - 12, 1, 4, cans[q]); }   // a vending machine
     else { R(sx - 2, oy - 6, 5, 6, H(ff7a1a)); R(sx - 1, oy - 4, 3, 1, H(ffffff)); R(sx - 3, oy - 1, 7, 1, H(ff7a1a)); }   // a traffic cone
   } else {
-    if (ty < 0.5) { col_t c = sz < 0.5 ? H(ff4a4a) : H(3ab0ff); R(sx, oy - 16, 1, 16, H(f4f0e8)); R(sx - 8, oy - 18, 17, 3, c); R(sx - 5, oy - 20, 11, 2, c); R(sx - 4, oy - 18, 3, 3, H(f4f0e8)); }   // a beach umbrella
-    else if (ty < 0.75) { R(sx - 6, oy - 3, 12, 3, H(ff8a3a)); R(sx - 6, oy - 3, 12, 1, H(ffd21f)); }   // a towel
-    else { R(sx - 1, oy - 7, 3, 7, H(c8b48a)); R(sx - 3, oy - 3, 7, 3, H(e8d4a8)); R(sx - 2, oy - 9, 5, 2, H(d84a3a)); }   // a sandcastle
+    if (ty < 0.4) { col_t c = sz < 0.5 ? H(ff4a4a) : H(3ab0ff); R(sx, oy - 16, 1, 16, H(f4f0e8)); R(sx - 8, oy - 18, 17, 3, c); R(sx - 5, oy - 20, 11, 2, c); R(sx - 4, oy - 18, 3, 3, H(f4f0e8)); }   // a beach umbrella
+    else if (ty < 0.55) { R(sx - 6, oy - 3, 12, 3, H(ff8a3a)); R(sx - 6, oy - 3, 12, 1, H(ffd21f)); }   // a towel
+    else sandcastle(sx, oy, sz);
   }
 }
 static col_t bands[5];
@@ -634,11 +663,12 @@ static void drawDecor(int zi, double camX, bool front) {
     roadAt(ox); double oy = fmax(HOR + 24, rnd(RC - RW / 2 - 6));
     if ((oy > g.y) == front) campSign(rnd(ox - camX), oy, c);
   }
-  for (int c = c0; c <= c1; c++) for (int k = 0; k < 4; k++) {
+  for (int c = c0; c <= c1; c++) for (int k = 0; k < 3; k++) {
     int sd = k * 9 + zi * 100;
     double ox = c * CH + hash(c, sd + 1) * CH, f = hash(c, sd + 2), sz = hash(c, sd + 3), ty = hash(c, sd + 4);
     if (ox < 780) continue;                                    // the garage area stays clear
     bool camp = camps && campAt(ox); if (k >= 2 && !camp) continue;   // campgrounds are busier
+    if (kind == 3 && !camp && k == 1 && !SEASON) continue;     // the meadow is kept calm: half the props
     double oy = rnd(HOR + 10 + f * (LH - HOR - 16));
     if ((oy > g.y) != front) continue;
     roadAt(ox); if (oy > RC - RW / 2 - 8 && oy < RC + RW / 2 + 8) continue;
