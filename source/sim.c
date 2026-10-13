@@ -261,29 +261,45 @@ static const char *NAMES[4][2][12] = {
   { { "Gravy","Cranberry","Pumpkin Pie","Drumstick","Stuffing","Wishbone","Harvest","Maple","Acorn","Leafy","Sweet Potato","Turkey" },
     { "Lane","Court","Drive","Cul-de-sac","Way","Circle","Crescent","Avenue","Place","Terrace","Hollow","Grove" } }
 };
+// The library, neon city and boardwalk landscapes name their maps too (a holiday's names win), as LAND_NAMES on the web.
+static const char *LAND_NAMES[3][2][12] = {
+  { { "Dewey","Hardback","Overdue","Dog-Eared","Silent","Leather","Gilded","Dusty","Paperback","Bookworm","Quiet","First Edition" },
+    { "Stacks","Aisle","Reading Room","Archive","Index","Folio","Shelf","Catalog","Chapter","Footnote","Card Catalog","Atlas" } },
+  { { "Midnight","Neon","Electric","Afterglow","Night Owl","Vapor","Rainy","Pachinko","Arcade","Ultra","Laser","Late Night" },
+    { "Expressway","Overpass","Ginza","Skyline","Underpass","Circuit","Strip","Boulevard","Ramp","Tunnel","Interchange","Loop" } },
+  { { "Saltwater","Seagull","Sunburn","Funnel Cake","Ferris","Boardwalk","Taffy","Breezy","Low Tide","Corn Dog","Surfside","Pelican" },
+    { "Pier","Promenade","Planks","Jetty","Wharf","Arcade","Shore","Midway","Dock","Strand","Esplanade","Landing" } }
+};
 void nameOf(int seed, int season, char *out, int n) {
-  snprintf(out, n, "%s %s", NAMES[season][0][(int)floor(hash(seed, 1) * 12)], NAMES[season][1][(int)floor(hash(seed, 2) * 12)]);
+  int land = season ? 0 : landOf(seed);
+  const char *const (*L)[12] = land >= FIRST_THEME ? LAND_NAMES[land - FIRST_THEME] : NAMES[season];
+  snprintf(out, n, "%s %s", L[0][(int)floor(hash(seed, 1) * 12)], L[1][(int)floor(hash(seed, 2) * 12)]);
 }
 int zoneAt(void) { return LAND; }                      // one landscape per track, fixed for the whole run
 
 static void sortByC(int *a, int n, int c, int base) {   // [0..n).sort((a, b) => hash(c, base + a) - hash(c, base + b))
   for (int i = 1; i < n; i++) for (int j = i; j > 0 && hash(c, base + a[j - 1]) > hash(c, base + a[j]); j--) { int t = a[j]; a[j] = a[j - 1]; a[j - 1] = t; }
 }
-/* As landOf in web/game.js: from the Nov 1 2026 maps on, the landscape comes from a shuffled cycle of all five, so none
+/* As landOf in web/game.js: from the Nov 1 2026 maps on, the landscape comes from a shuffled cycle of all eight, so none
    repeats until every one has had its turn (weekly maps and the Daily Dash each run their own cycle). Earlier maps keep
-   the one they always had. It only changes the look, never the road. */
+   the one they always had. Holidays repaint everything, so a themed landscape (library, neon city, boardwalk) that lands
+   on a holiday map gives its turn to one of the five outdoor ones. It only changes the look, never the road. */
 int landOf(int seed) {
   bool daily = seed >= DAILY_BASE; int day = daily ? seed - DAILY_BASE : seed;
   if (day < PARKS_FROM) { int o[3] = { 0, 1, 2 }; sortByC(o, 3, seed, 10); return o[0]; }
   if (day > 400000) return 0;                           // not a real map day (the Wii's arcade seeds): the caller sets LAND
-  int i = daily ? day - PARKS_FROM : (day - PARKS_FROM) / 7, salt = daily ? 60 : 50, cyc = i / 5;
-  int o[5] = { 3, 4, 0, 1, 2 }; if (daily) { o[0] = 4; o[1] = 3; }   // the parks open the first cycle
+  int i = daily ? day - PARKS_FROM : (day - PARKS_FROM) / 7, salt = daily ? 60 : 50, cyc = i / N_LANDS;
+  // the first cycle opens with the new ones, placed so the themes miss Thanksgiving and Christmas 2026
+  static const int firstW[N_LANDS] = { 3, 5, 6, 0, 7, 4, 1, 2 }, firstD[N_LANDS] = { 4, 3, 5, 6, 7, 0, 1, 2 };
+  int o[N_LANDS]; memcpy(o, daily ? firstD : firstW, sizeof o);
   for (int c = 1; c <= cyc; c++) {
-    int last = o[4], n[5] = { 0, 1, 2, 3, 4 }; sortByC(n, 5, c, salt);
+    int last = o[N_LANDS - 1], n[N_LANDS]; for (int k = 0; k < N_LANDS; k++) n[k] = k;
+    sortByC(n, N_LANDS, c, salt);
     if (n[0] == last) { int t = n[0]; n[0] = n[1]; n[1] = t; }   // no repeat across the seam
     memcpy(o, n, sizeof o);
   }
-  return o[i % 5];
+  int z = o[i % N_LANDS];
+  return z >= FIRST_THEME && seasonOf(seed) ? (int)floor(hash(seed, 61) * FIRST_THEME) : z;
 }
 
 static void sortBy(int *a, int n, int base) {           // [0..n).sort((a, b) => hash(SEED, base + a) - hash(SEED, base + b))

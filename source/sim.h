@@ -18,6 +18,8 @@
 #define THIN_RAILS_FROM 20737
 #define FIRST_WEEK 20730
 #define DAILY_BASE 1000000
+#define N_LANDS 8
+#define FIRST_THEME 5       // landscapes from here on are themes with their own road and rails
 #define PARKS_FROM 20758        // maps from Nov 1 2026 on pick from all five landscapes (look only)
 
 typedef struct { double x, len; } Span;
@@ -58,7 +60,7 @@ extern Spans gaps, edges, holds;
 extern Rail *rails; extern int nrails;
 extern int SEASON;       // 0 none, 1 halloween, 2 christmas, 3 thanksgiving
 extern int ORDER[3], skyPerm[4];
-extern int LAND;         // the landscape: 0 desert, 1 coast, 2 forest, 3 yosemite, 4 canyon
+extern int LAND;         // the landscape: 0 desert, 1 coast, 2 forest, 3 yosemite, 4 canyon, 5 library, 6 neon city, 7 boardwalk pier
 
 // state
 extern int st;
