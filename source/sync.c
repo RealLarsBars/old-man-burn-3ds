@@ -26,7 +26,7 @@ static void saveLink(void) {
   mkdir("sdmc:/3ds", 0777); mkdir(DIR_, 0777);
   FILE *f = fopen(LINK_FILE, "w"); if (!f) return;
   if (linked) fprintf(f, "token %s\nname %s\n", token, name);
-  if (strcmp(net_server(), "https://old-man-burn-production.up.railway.app")) fprintf(f, "server %s\n", net_server());
+  if (strcmp(net_server(), "https://oldmanburn-production.up.railway.app")) fprintf(f, "server %s\n", net_server());
   fclose(f);
 }
 static void loadLink(void) {
