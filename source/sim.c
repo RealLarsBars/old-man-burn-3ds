@@ -275,6 +275,7 @@ static void sortByC(int *a, int n, int c, int base) {   // [0..n).sort((a, b) =>
 int landOf(int seed) {
   bool daily = seed >= DAILY_BASE; int day = daily ? seed - DAILY_BASE : seed;
   if (day < PARKS_FROM) { int o[3] = { 0, 1, 2 }; sortByC(o, 3, seed, 10); return o[0]; }
+  if (day > 400000) return 0;                           // not a real map day (the Wii's arcade seeds): the caller sets LAND
   int i = daily ? day - PARKS_FROM : (day - PARKS_FROM) / 7, salt = daily ? 60 : 50, cyc = i / 5;
   int o[5] = { 3, 4, 0, 1, 2 }; if (daily) { o[0] = 4; o[1] = 3; }   // the parks open the first cycle
   for (int c = 1; c <= cyc; c++) {
