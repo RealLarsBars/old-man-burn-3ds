@@ -19,8 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install the portlibs the game links against
-        run: dkp-pacman -Sy --needed --noconfirm 3ds-curl 3ds-mbedtls 3ds-jansson 3ds-zlib
+      # The devkitarm image already ships these. pkg.devkitpro.org can refuse GitHub's runners (403),
+      # so only sync pacman when one is actually missing.
+      - name: Check the portlibs the game links against
+        run: |
+          pkgs="3ds-curl 3ds-mbedtls 3ds-jansson 3ds-zlib"
+          dkp-pacman -Q $pkgs || dkp-pacman -Sy --needed --noconfirm $pkgs
 
       - name: Build makerom and bannertool
         run: |
