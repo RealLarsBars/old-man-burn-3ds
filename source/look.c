@@ -6,8 +6,11 @@
 //  - animated hats, gear and the Cat Pal are drawn last, so they are drawn live on top (with the specs, which sit over the
 //    hat; and with any gear, which sits over the specs);
 //  - the rest sits in the middle of the order (the purple/disco/flame coats, holo paint and the precious paints' twinkle,
-//    the sun and batmoon decals, the canes that glow, sway or glint, the cauldron, chest, boombox and piggy carriers), so
-//    the sprite is re-rendered about 10 times a second while one of them is worn.
+//    the sun and batmoon decals, the canes that glow, sway or glint, the cauldron, chest, boombox and piggy carriers). While
+//    one of them is worn, the sprite is drawn as NPH frames 0.2 s apart, once each, and then played on a 2 s loop: redrawing
+//    it 5 times a second cost an Old 3DS about 12 ms each time. Moving gear and the Cat Pal go into those frames too unless
+//    a live hat sits under them;
+//  - wheels that only turn (web, spokes, pizza, vinyl) are drawn once into SPR_WHEEL and stamped turned.
 #include "look.h"
 #include "draw.h"
 #include "sim.h"
@@ -54,6 +57,8 @@ static char raw[NSLOT][16], cur[NSLOT][16];                     // what was set,
 #define IS(sl, s) (!strcmp(cur[sl], s))
 static bool dirty = true, fAnim, fRims, fCap, fGear, fCat;      // sprite needs a redraw; which parts move (see the top)
 static double lastBuild = -1;
+static bool phBuilt[NPH], phFail, wheelSpr, wheelBuilt, wheelZero;  // which animation frames exist; rims stamped from SPR_WHEEL
+static int phCur = -1;
 
 /* ---------- paint ---------- */
 static const struct { const char *id; col_t a, b; } PAINTS[] = {
@@ -246,7 +251,7 @@ static void drawSleeve(void) {
 }
 
 /* ---------- wheels ---------- */
-static double wheelAngle(void) { return st == ST_PLAY || st == ST_CRASH ? g.cam / 8 : T * 9; }
+static double wheelAngle(void) { return wheelZero ? 0 : st == ST_PLAY || st == ST_CRASH ? g.cam / 8 : T * 9; }
 static void disc(double r, col_t c) { C(c, 0, 0, r); }
 static void spokes(int n, double step, double len, double a, col_t c, double w) {
   cv_begin(); for (int i = 0; i < n; i++) { cv_move(0, 0); cv_line(cos(a + i * step) * len, sin(a + i * step) * len); } cv_stroke(c, w);
@@ -775,20 +780,46 @@ static void bikeBody(void) {
   C(H(f2c9a0), 15, -36, 5);
   cv_fill(H(f1ecf7)); F(10, -38, 2, 5); F(18, -33, 5, 2); F(19, -31, 3, 1);
   if (!fCap) { drawCap(cur[SL_CAP]); drawSpecs(); }
-  if (!fGear && *cur[SL_GEAR]) drawGear(cur[SL_GEAR]);
+  if (!(fGear && fCap) && *cur[SL_GEAR]) drawGear(cur[SL_GEAR]);
+  if (fCat && !fCap) drawCatPal();
 }
 // The sprite is 136x152 at twice the size: x -22..46, y -62..14 around the rear wheel (room for the tall hats and the
 // fishing line); its pivot lands on the same texel grid as before, so the default look stamps exactly as it did.
 void look_sprite(void) { spr_begin(SPR_BIKE, 136, 152, 2, 22, 62); bikeBody(); lastBuild = T; dirty = false; }
-void look_under(void) { if (fRims) { drawWheel(0); drawWheel(34); } }
-void look_over(void) {
-  if (fCap) { drawCap(cur[SL_CAP]); drawSpecs(); }
+void look_under(void) {
+  if (!fRims) return;
+  if (!wheelSpr || !wheelBuilt) { drawWheel(0); drawWheel(34); return; }
+  for (int i = 0; i < 2; i++) { cv_save(); cv_translate(i * 34, 0); cv_rotate(wheelAngle()); cv_sprite(SPR_WHEEL); cv_restore(); }
+}
+void look_over(void) {                                          // a live hat, then what sits over it (otherwise they're in the sprite)
+  if (!fCap) return;
+  drawCap(cur[SL_CAP]); drawSpecs();
   if (fGear) drawGear(cur[SL_GEAR]);
   if (fCat) drawCatPal();
 }
+static bool phases(void) { return fAnim && !phFail; }
+static void buildPhase(int p) {                                 // the frame as it looks at p * 0.2 s, at 128x128 texels so all NPH
+  if (phBuilt[p] || phFail) return;                             // fit in VRAM (render targets can't live in main memory)
+  double t = T; T = p * 0.2;
+  if (spr_begin(SPR_PH0 + p, 115, 128, 1.68, 22, 62)) { bikeBody(); spr_end(); phBuilt[p] = true; } else phFail = true;
+  T = t;
+}
+void look_prebuild(void) { if (phases()) for (int p = 0; p < NPH; p++) buildPhase(p); }
+int look_count(int slot) { int n = 0; if (slot >= 0 && slot < NSLOT) while (n < 20 && ITEMS[slot][n]) n++; return n; }
+const char *look_item(int slot, int i) { return i >= 0 && i < look_count(slot) ? ITEMS[slot][i] : ""; }
+int look_spr(void) { return phases() && phCur >= 0 && phBuilt[phCur] ? SPR_PH0 + phCur : SPR_BIKE; }
 void look_frame(void) {
-  if (!dirty && !(fAnim && (T - lastBuild >= 0.2 || T < lastBuild))) return;   // animated items: 5 redraws a second
-  look_sprite(); spr_end();
+  if (dirty) { memset(phBuilt, 0, sizeof phBuilt); wheelBuilt = false; if (!phases()) { look_sprite(); spr_end(); } dirty = false; }
+  if (fRims && wheelSpr && !wheelBuilt) {                       // the wheel at angle 0, 2 texels a unit like the bike
+    wheelZero = true;
+    if (spr_begin(SPR_WHEEL, 36, 36, 2, 9, 9)) { drawWheel(0); spr_end(); wheelBuilt = true; } else wheelSpr = false;
+    wheelZero = false;
+  }
+  if (phases()) {
+    int p = (int)fmod(floor(fmax(T, 0) * 5), NPH); phCur = p;
+    buildPhase(p);
+  }
+  if (fAnim && phFail && (T - lastBuild >= 0.2 || T < lastBuild)) { look_sprite(); spr_end(); }   // no memory for the frames: redraw 5 times a second
 }
 
 /* ---------- choosing the look ---------- */
@@ -811,7 +842,10 @@ void look_set(int slot, const char *id) {
   fCap = any(SL_CAP, capLive);
   fGear = *cur[SL_GEAR] && (!any(SL_GEAR, gearStill) || fCap);   // gear sits over the specs, so it goes live with a live hat
   fCat = IS(SL_CANE, "cat");
-  fAnim = any(SL_COAT, coatAnim) || any(SL_PAINT, paintAnim) || any(SL_DECAL, decalAnim) || any(SL_CARRIER, carrierAnim) || any(SL_CANE, caneAnim);
+  static const char *const rimsTurn[] = { "web", "spokes", "pizza", "vinyl", NULL };
+  wheelSpr = any(SL_RIMS, rimsTurn);
+  fAnim = any(SL_COAT, coatAnim) || any(SL_PAINT, paintAnim) || any(SL_DECAL, decalAnim) || any(SL_CARRIER, carrierAnim) || any(SL_CANE, caneAnim)
+       || (!fCap && (fGear || fCat));                           // moving gear and the Cat Pal go into the animation frames
   dirty = true;
 }
 

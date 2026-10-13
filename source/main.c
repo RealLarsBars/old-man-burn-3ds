@@ -357,6 +357,42 @@ static void topGarage(void) {                                      // the bike u
   }
   if (n > 7) { char m[32]; snprintf(m, sizeof m, "%d-%d of %d", first + 1, first + 7 < n ? first + 7 : n, n); ui_text(m, 464, 26, 8, UI_DIM, AL_RIGHT); }
 }
+// Garage, SELECT: shows every item on its own for a moment and writes what drawing it costs to bench.txt, to find the ones
+// that make an Old 3DS lag. "frame" is the CPU time of a garage frame with the animation frames already drawn; "build" is
+// the one-off cost of drawing the bike sprite (all NPH animation frames for animated items). B stops it.
+static void cosmeticBench(void) {
+  FILE *f = fopen(SAVE_DIR "/bench.txt", "w"); if (!f) return;
+  bool n3ds = false; APT_CheckNew3DS(&n3ds);
+  fprintf(f, "Cosmetic bench, %s. ms of CPU per garage frame (avg / max), then the one-off sprite build.\n", n3ds ? "New 3DS" : "Old 3DS");
+  char was[NSLOT][16]; for (int s = 0; s < NSLOT; s++) snprintf(was[s], sizeof was[s], "%s", look_get(s));
+  int total = 0, done = 0; for (int s = 0; s < NSLOT; s++) total += look_count(s) + 1;
+  for (int s = 0; s < NSLOT; s++) for (int i = -1; i < look_count(s); i++) {
+    for (int k = 0; k < NSLOT; k++) look_set(k, "");
+    const char *id = look_item(s, i); look_set(s, id); done++;
+    double sum = 0, mx = 0, build = 0; int n = 0;
+    for (int fr = 0; fr < 30; fr++) {
+      hidScanInput(); if (hidKeysDown() & KEY_B) goto stop;
+      T += 1 / 60.0;
+      gfx_frame_begin(); u64 a = svcGetSystemTick();
+      look_frame(); if (fr == 0) look_prebuild(); u64 b = svcGetSystemTick();
+      render_game(NULL);
+      gfx_top_begin();
+      gfx_bottom_begin(H(0a0612));
+      char line[64]; snprintf(line, sizeof line, "%s: %s", SLOT_NAMES[s], *id ? item_name(s, id) : "original");
+      ui_text("COSMETIC BENCH", 160, 90, 12, UI_GOLD, AL_CENTER); ui_text(line, 160, 116, 10, UI_BONE, AL_CENTER);
+      snprintf(line, sizeof line, "%d of %d. B stops.", done, total); ui_text(line, 160, 140, 9, UI_SUB, AL_CENTER);
+      gfx_frame_end(); u64 c = svcGetSystemTick();
+      double ms = (c - a) / (SYSCLOCK_ARM11 / 1000.0);
+      if (fr == 0) build = (b - a) / (SYSCLOCK_ARM11 / 1000.0);
+      else if (fr >= 6) { sum += ms; n++; if (ms > mx) mx = ms; }
+    }
+    fprintf(f, "%-8s %-11s frame %5.1f / %5.1f   build %5.1f\n", SLOT_IDS[s], *id ? id : "-", sum / n, mx, build);
+  }
+  fprintf(f, "done\n");
+stop:
+  fclose(f);
+  for (int s = 0; s < NSLOT; s++) look_set(s, was[s]);
+}
 static void openGarage(void) { backTo = UI_TITLE; screen = UI_GARAGE; garageNew = false; ui_reset_focus(); }
 
 
@@ -517,6 +553,7 @@ int main(void) {
     } else if (st == ST_TITLE && screen == UI_GARAGE) {
       if (kd & KEY_B) { screen = UI_TITLE; ui_reset_focus(); kd = 0; }
       if (kd & (KEY_L | KEY_R)) { garTab ^= 1; garSel = garTop = 0; }
+      if (kd & KEY_SELECT) { cosmeticBench(); kd = 0; }
       int n = garTab ? NTRACK : NSLOT;
       if (kd & (KEY_DOWN | KEY_UP)) { garSel += (kd & KEY_DOWN) ? 1 : -1; if (garSel < 0) garSel = 0; if (garSel >= n) garSel = n - 1; }
       if (garTab == 0 && (kd & (KEY_LEFT | KEY_RIGHT))) ach_wear(garSel, (kd & KEY_RIGHT) ? 1 : -1);

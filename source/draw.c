@@ -264,7 +264,7 @@ void drawBike(double x, double y, double wheelie, double spin, bool noShadow) {
   if (wheelie > 0.4 && st != ST_CRASH) R(x - 64, y - 1, 46, 1, rgba(30, 20, 50, .25));
   if (spin) { cv_translate(x, y - 14); cv_rotate(spin); cv_translate(-x, -(y - 14)); }
   cv_translate(x - 17, y - 8); cv_rotate(-0.5 * wheelie);
-  look_under(); cv_sprite(SPR_BIKE); look_over();
+  look_under(); cv_sprite(look_spr()); look_over();
   cv_restore();
 }
 static void halftone(void) {

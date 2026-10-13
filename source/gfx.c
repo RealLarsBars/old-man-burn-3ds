@@ -337,9 +337,11 @@ static void blendNormal(void);
 typedef struct { C3D_Tex tex; C3D_RenderTarget *t; int w, h; float sc, px, py; Tex3DS_SubTexture sub; } Sprite;
 static Sprite spr[NSPR];
 static int pow2(int v) { int p = 8; while (p < v) p <<= 1; return p; }
-void spr_begin(int id, int w, int h, double sc, double px, double py) {
+bool spr_begin(int id, int w, int h, double sc, double px, double py) {
   Sprite *S = &spr[id];
-  if (!S->t) { int tw = pow2(w), th = pow2(h); C3D_TexInitVRAM(&S->tex, tw, th, GPU_RGBA8); C3D_TexSetFilter(&S->tex, GPU_LINEAR, GPU_LINEAR);
+  if (!S->t) { int tw = pow2(w), th = pow2(h);
+    if (!C3D_TexInitVRAM(&S->tex, tw, th, GPU_RGBA8)) return false;
+    C3D_TexSetFilter(&S->tex, GPU_LINEAR, GPU_LINEAR);
     S->t = C3D_RenderTargetCreateFromTex(&S->tex, GPU_TEXFACE_2D, 0, -1);
     S->sub = (Tex3DS_SubTexture){ (u16)w, (u16)h, 0.0f, 1.0f, (float)w / tw, 1.0f - (float)h / th }; }
   S->w = w; S->h = h; S->sc = (float)sc; S->px = (float)px; S->py = (float)py;
@@ -347,6 +349,7 @@ void spr_begin(int id, int w, int h, double sc, double px, double py) {
   C2D_SceneBegin(S->t);
   C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
   cv_reset(); cv_scale(sc, sc); cv_translate(px, py);
+  return true;
 }
 void cv_sprite(int id) {                                     // the sprite's pivot (its local origin) lands on the current origin
   Sprite *S = &spr[id]; if (!S->t) return;

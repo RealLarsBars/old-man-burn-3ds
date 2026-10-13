@@ -89,6 +89,11 @@ game, sound and drawing took on average and at worst, how often the sound ran dr
 the road they happened. Send that file along with a lag report. Holding Y shows the CPU and GPU load on the bottom
 screen while you play.
 
+To time every cosmetic, open the garage and press SELECT. The bench shows each item on its own for half a second and
+writes `sdmc:/3ds/oldmanburn/bench.txt`: the CPU time of a frame with it on (average and worst), and the one-off cost of
+drawing the bike sprite. Animated items draw ten frames of it once, then loop them. B stops it early. Emulator timings
+mean nothing here, so run it on the console.
+
 ## The clock
 
 The weekly map changes Sunday at midnight and the Daily Dash at noon, Pacific time, the same as the server. A 3DS only
