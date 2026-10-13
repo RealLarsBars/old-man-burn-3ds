@@ -172,7 +172,7 @@ void sync_tick(bool menus) {
     } else if (r.kind == K_RUN) {
       sending = false;
       if (ok) {
-        remove(sending_file); setStatus("Ride uploaded to Discord");
+        remove(sending_file); setStatus("Sent to Discord: it's in 3DS RIDES");
         json_t *p = json_object_get(j, "profile"); if (json_is_object(p)) applyProfile(p);
         sendOutbox();
       } else if (r.status >= 400 && r.status < 500 && r.status != 401 && r.status != 429) {   // the server won't take it: don't retry forever
