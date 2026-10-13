@@ -4,3 +4,7 @@ build/
 *.elf
 *.smdh
 *.map
+wii/build/
+wii/build-autoplay/
+*.dol
+wii/shots/

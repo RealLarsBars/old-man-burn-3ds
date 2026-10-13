@@ -2,12 +2,21 @@
 // Web Audio (the "Summer" storm every week, the Haunted Organ on Halloween maps, the engine and the crash).
 #include "audio.h"
 #include "sim.h"
+#ifdef __3DS__
 #include <3ds.h>
+#else
+#include <gccore.h>
+#include <asndlib.h>
+#endif
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef __3DS__
 #define RATE 22050
+#else
+#define RATE 32000               // the Wii mixes at 32 or 48 kHz anyway
+#endif
 #define BUF 256                  // small buffers, so each frame synthesizes about the same amount
 #define NBUF 10
 #define MAXV 64
@@ -25,7 +34,9 @@ typedef struct {
 } Voice;
 
 static bool ok, music = true, sfx = true;
+#ifdef __3DS__
 static ndspWaveBuf wbuf[NBUF]; static s16 *pcm;
+#endif
 static Voice V[MAXV];
 static float sinTab[1024];
 static uint32_t nseed = 22222;
@@ -169,6 +180,7 @@ static void fill(s16 *out, int n) {
   }
 }
 
+#ifdef __3DS__
 /* ---------- the sound thread: on the second CPU core, so making sound never holds up a frame ---------- */
 static Thread thread; static int threadCore = -1;               // -1: no thread, the main loop fills the buffers itself
 static LightLock lock; static LightEvent wake; static volatile bool quit;
@@ -227,24 +239,80 @@ void audio_exit(void) {
   if (thread) { quit = true; LightEvent_Signal(&wake); threadJoin(thread, U64_MAX); threadFree(thread); ndspSetCallback(NULL, NULL); }
   ndspExit(); linearFree(pcm);
 }
+#define LOCK() do { if (thread) LightLock_Lock(&lock); } while (0)
+#define UNLOCK() do { if (thread) LightLock_Unlock(&lock); } while (0)
+#else
+/* ---------- the Wii: a thread makes buffers ahead, and ASND's callback queues the next one as each finishes ---------- */
+#define WB 1024                                                  // samples per buffer (32 ms)
+#define NRING 4
+static s16 ring[NRING][WB * 2] ATTRIBUTE_ALIGN(32);
+static volatile unsigned head, tail;                             // head: next buffer to make, tail: next to queue
+static lwpq_t wakeQ; static lwp_t thread = LWP_THREAD_NULL; static mutex_t lock; static volatile bool quit;
+static volatile int soundGaps;
+static u8 stack[32 * 1024] ATTRIBUTE_ALIGN(8);
+static void makeBuf(s16 *out) {
+  static s16 mono[BUF];
+  for (int o = 0; o < WB; o += BUF) { fill(mono, BUF); for (int i = 0; i < BUF; i++) out[(o + i) * 2] = out[(o + i) * 2 + 1] = mono[i]; }
+  DCFlushRange(out, WB * 4);
+}
+static void onVoice(s32 voice) {
+  if (tail != head) { ASND_AddVoice(voice, ring[tail % NRING], WB * 4); tail++; } else soundGaps++;
+  LWP_ThreadSignal(wakeQ);
+}
+static void *soundThread(void *arg) {
+  (void)arg;
+  while (!quit) {
+    while (head - tail < NRING) { LWP_MutexLock(lock); makeBuf(ring[head % NRING]); LWP_MutexUnlock(lock); head++; }
+    LWP_ThreadSleep(wakeQ);
+  }
+  return NULL;
+}
+int audio_gaps(void) { return soundGaps; }
+int audio_core(void) { return 0; }
+int audio_played(void) { return (int)tail; }
+void audio_init(void) {
+  for (int i = 0; i < 1024; i++) sinTab[i] = sinf(i * 2 * (float)M_PI / 1024);
+  biquad(&bassF, F_LP, 600, 1); biquad(&engF, F_LP, 420, 1);
+  dlyLen = RATE; dly = calloc(dlyLen, sizeof(float));
+  ASND_Init(); ASND_Pause(0);
+  LWP_MutexInit(&lock, false); LWP_InitQueue(&wakeQ);
+  for (int i = 0; i < NRING; i++) makeBuf(ring[i]);
+  head = NRING; tail = 0;
+  ASND_SetVoice(0, VOICE_STEREO_16BIT, RATE, 0, ring[0], WB * 4, 255, 255, onVoice); tail = 1;
+  ASND_AddVoice(0, ring[1], WB * 4); tail = 2;
+  LWP_CreateThread(&thread, soundThread, NULL, stack, sizeof stack, 70);
+  ok = true;
+}
+void audio_exit(void) {
+  if (!ok) return;
+  quit = true; LWP_ThreadSignal(wakeQ); LWP_JoinThread(thread, NULL);
+  ASND_StopVoice(0); ASND_End();
+}
+#define LOCK() LWP_MutexLock(lock)
+#define UNLOCK() LWP_MutexUnlock(lock)
+#endif
 void audio_set(bool m, bool s) { music = m; sfx = s; }
 void audio_crash(void) {
-  if (thread) LightLock_Lock(&lock);
+  LOCK();
   noise(0, 1.0f, F_LP, 1800, 0.9f, B_SFX); tone(0, 160, 0.7f, W_SINE, 1.0f, B_SFX, 28);
   tone(0, 1400, 0.35f, W_SAW, 0.18f, B_SFX, 200); noise(0.02f, 0.25f, F_HP, 3000, 0.35f, B_SFX); tone(0.12f, 90, 0.5f, W_TRI, 0.6f, B_SFX, 40);
   musicT = 0.15f;
-  if (thread) LightLock_Unlock(&lock);
+  UNLOCK();
 }
 int audio_tick(void) {
   if (st != lastSt) {                                            // only a change of state touches what the sound thread uses
-    if (thread) LightLock_Lock(&lock);
+    LOCK();
     if (st == ST_PLAY) { musicT = 0.55f; stepN = 0; stepLeft = 0; }   // a fresh run starts the track from the top
     if (st == ST_TITLE) { for (int i = 0; i < MAXV; i++) if (V[i].bus != B_SFX) V[i].on = false; }
     lastSt = st;
-    if (thread) LightLock_Unlock(&lock);
+    UNLOCK();
   }
   engFreqT = 46 + (float)g.v * 0.18f + (float)g.thr * 22;
   engGainT = st == ST_PLAY && !paused ? 0.05f + 0.05f * (float)g.thr : 0;
   dlyTime = fminf(0.95f, 60 / bpm() / 4 * 3);
+#ifdef __3DS__
   return ok && !thread ? pump() : 0;
+#else
+  return 0;
+#endif
 }

@@ -1,5 +1,8 @@
 # Old Man Burn for the Nintendo 3DS
 
+(There's also a Wii arcade edition for the Homebrew Channel in [`wii/`](wii/README.md). It shares this version's road,
+drawing and synth.)
+
 A homebrew port of [Old Man Burn](https://github.com/RealLarsBars/old-man-burn). It rides this week's map, today's
 Daily Dash and every old weekly map, built from the same seeds with the same road rules, so the roads are the ones
 Discord is riding. It plays fully offline, with the garage and achievements kept on the SD card; linked to Discord over

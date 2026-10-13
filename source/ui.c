@@ -1,5 +1,9 @@
 #include "ui.h"
+#ifdef __3DS__
 #include <3ds.h>
+#else
+#include "keys.h"
+#endif
 #include <math.h>
 
 #define MAXB 48

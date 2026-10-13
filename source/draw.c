@@ -337,9 +337,13 @@ static void garageStatic(void) {
 
   #undef X
 }
+static bool garageLive;
 static void garageCache(void) {                                  // at the start of a frame, before anything else is drawn
   if (!garageDirty) return;
-  pat_offset(0); spr_begin(SPR_GARAGE, GAR_W, LH - GAR_Y0, 1, -GAR_X0, -GAR_Y0); garageStatic(); spr_end(); garageDirty = false;
+  pat_offset(0);
+  if (spr_begin(SPR_GARAGE, GAR_W, LH - GAR_Y0, 1, -GAR_X0, -GAR_Y0)) { garageStatic(); spr_end(); garageLive = false; }
+  else garageLive = true;                                         // no room for the picture (the Wii's EFB is 640 wide): draw it live
+  garageDirty = false;
 }
 static void drawGarage(double camX, bool front) {
   if (camX > 800) return;
@@ -355,7 +359,9 @@ static void drawGarage(double camX, bool front) {
     return;
   }
   const double x0 = 6, x1 = 470, wallTop = 80;
-  cv_save(); cv_translate(rnd(-camX), 0); cv_sprite(SPR_GARAGE); cv_restore();
+  cv_save(); cv_translate(rnd(-camX), 0);
+  if (garageLive) { pat_offset(0); garageStatic(); pat_offset(fmod(fmod(camX, TILE) + TILE, TILE)); } else cv_sprite(SPR_GARAGE);
+  cv_restore();
   // lanterns along the eave
   for (double x = x0 + 12; x < x1 - 6; x += 36) {
     double sw = sin(T * 1.6 + x) * 1; cv_fill(rgba(255, 106, 74, .16)); cv_circle(X(x) + sw, 90, 13);
