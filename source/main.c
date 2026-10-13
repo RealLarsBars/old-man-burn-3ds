@@ -141,6 +141,25 @@ static int archWeek(int i) { return liveWeek - 7 - i * 7; }      // the old-maps
 static const char *modeLabel(void) { return mode == MODE_DAILY ? "Today's Daily Dash" : mode == MODE_OLD ? "Old map" : "This week's track"; }
 
 static void topGarage(void), topCode(void);
+static bool topBoard(void) {                                     // linked: the Discord leaderboard where the blurb goes
+  const BoardRow *rows; int pot; bool daily = mode == MODE_DAILY;
+  int n = sync_board(daily, daily ? liveDay : liveWeek, &rows, &pot);
+  if (n < 0) return false;
+  char b[64], sc[24];
+  if (daily) snprintf(b, sizeof b, "TODAY'S DAILY DASH BOARD");
+  else { fmtNum(pot, sc); snprintf(b, sizeof b, "THIS WEEK'S BOARD · POT %s", sc); }
+  ui_kicker(b, 16, 132, UI_PINK);
+  if (!n) { ui_wrap(daily ? "Nobody's ridden today's map in Discord yet." : "Nobody's on the board yet. Be the first, sonny.", 16, 142, 9, UI_SUB, 200); return true; }
+  for (int i = 0; i < n; i++) {
+    const BoardRow *r = &rows[i]; double y = 152 + i * 17;
+    if (r->me) { cv_fill(rgba(255, 210, 31, .12)); cv_rect(12, y - 12, 206, 16); }
+    snprintf(b, sizeof b, "%d", i + 1); ui_text(b, 18, y, 9, i ? UI_DIM : UI_GOLD, AL_LEFT);
+    ui_text(r->name, 32, y, 9, r->me ? UI_GOLD : UI_BONE, AL_LEFT);
+    if (r->ds) ui_text("3DS", 36 + cv_text_width(r->name, 9), y - 1, 6, UI_CYAN, AL_LEFT);   // cv_text_width uses ui_text's font
+    fmtNum(r->score, sc); snprintf(b, sizeof b, "%s m", sc); ui_text(b, 214, y, 9, UI_GOLD, AL_RIGHT);
+  }
+  return true;
+}
 static void topHud(void) {
 #ifdef SHOWCASE
   if (st == ST_TITLE) return;
@@ -156,6 +175,7 @@ static void topHud(void) {
     else snprintf(b, sizeof b, "%s: %s", modeLabel(), trackName);
     upper(b, u, sizeof u); ui_kicker(u, 16, 26, UI_CYAN);
     ui_heading("OLD MAN", 16, 70, 38, AL_LEFT); ui_heading("BURN", 16, 108, 38, AL_LEFT);
+    if (screen != UI_ARCHIVE && mode != MODE_OLD && topBoard()) return;
     ui_wrap("Born in 1952 and still riding. The road never stops scrolling, sonny. Ease off the throttle and you slide off "
             "the back. Hold it too long and you shoot off the front. Mind the gout.", 16, 120, 9, UI_BONE, 250);
     return;

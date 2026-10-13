@@ -15,3 +15,6 @@ void sync_link_prompt(void);               // the software keyboard for the 6-di
 void sync_unlink(void);
 void sync_loadout_changed(void);           // the garage changed the look
 void sync_run(void);                       // the run just recorded (replay.h) is over: queue it for upload
+typedef struct { char name[16]; int score; bool ds, me; } BoardRow;
+// The Discord top 5 for week `id` (or Daily Dash day `id`): how many rows, or -1 when there's no board for it yet
+int sync_board(bool daily, int id, const BoardRow **rows, int *pot);
