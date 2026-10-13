@@ -14,7 +14,7 @@ static NetResult done[QN]; static int dHead, dTail;               // finished on
 static LightLock lock; static LightEvent wake;
 static Thread th; static volatile bool quit, running, working;
 static u32 *socBuf; static bool socOk;
-static char server[128] = "https://old-man-burn-production.up.railway.app";
+static char server[128] = "https://oldmanburn-production.up.railway.app";
 
 void net_set_server(const char *url) { LightLock_Lock(&lock); strncpy(server, url, sizeof server - 1); LightLock_Unlock(&lock); }
 const char *net_server(void) { return server; }
