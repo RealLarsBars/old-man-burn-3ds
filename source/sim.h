@@ -15,6 +15,8 @@
 #define SW3_FROM 20737
 #define SW4_FROM 20744
 #define SW4_DAILY_FROM 20738
+#define SPLIT_FROM 20744       // split roads: weekly maps from Oct 18 2026, Daily Dash from day 20740 (Oct 14 noon PT)
+#define SPLIT_DAILY_FROM 20740
 #define THIN_RAILS_FROM 20737
 #define FIRST_WEEK 20730
 #define DAILY_BASE 1000000
@@ -25,7 +27,7 @@
 typedef struct { double x, len; } Span;
 typedef struct { double x, len; int side; int combo; int combo_i; } Rail;  // side -1 = a set piece's, picked by its swerve
 typedef struct { double x, len, from, to; } Swerve;
-typedef struct { double x, len; int rail; } Combo;
+typedef struct { double x, len; int rail; } Combo;          // rail -1 = a split gap's swerve
 
 typedef struct { Span *a; int n, cap; } Spans;
 
