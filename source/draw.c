@@ -311,6 +311,75 @@ static void drawYosemiteDecor(double sx, double oy, double sz, double ty) {
   else if (ty < 0.95) { R(sx - 6, oy - 7, 12, 7, H(6a5a3a)); R(sx - 6, oy - 7, 12, 1, H(8a7a5a)); R(sx - 1, oy - 5, 3, 1, H(2a2420)); R(sx - 6, oy - 1, 12, 1, H(4a3e28)); }   // a bear-proof food locker
   else { R(sx - 1, oy - 10, 1, 10, H(5a3a22)); R(sx + 6, oy - 10, 1, 10, H(5a3a22)); R(sx - 3, oy - 15, 12, 6, H(6a4424)); R(sx - 2, oy - 13, 10, 1, H(e8d8a0)); R(sx - 2, oy - 11, 7, 1, H(e8d8a0)); }   // a park sign
 }
+/* now and then (about 8% of the ride) the Yosemite road runs through a campground: look only (campAt in web/game.js) */
+#define CAMP_W 1800
+static const char *const CAMP_NAMES[8] = { "UPPER PINES", "LOWER PINES", "NORTH PINES", "CAMP 4", "WAWONA", "CRANE FLAT", "TUOLUMNE", "BRIDALVEIL" };
+static bool campAt(double wx) { int c = (int)floor(wx / CAMP_W); return c >= 2 && hash(c + (int)(hash(SEED, 403) * 1e6), 401) < 0.08; }   // ~8% of 300 m stretches
+static const col_t TENTS[5][2] = { { H(e8743a), H(b8542a) }, { H(3a8a5a), H(2a6a44) }, { H(3a6ac8), H(2a4a9a) }, { H(e8c43a), H(b8942a) }, { H(c83a3a), H(9a2a2a) } };
+static void campSign(double sx, double oy, int c) {             // the wooden campground sign by the road
+  R(sx - 20, oy - 8, 2, 8, H(5a3a22)); R(sx + 19, oy - 8, 2, 8, H(5a3a22));
+  R(sx - 24, oy - 22, 49, 15, H(6a4424)); R(sx - 24, oy - 22, 49, 1, H(8a6440)); R(sx - 24, oy - 8, 49, 1, H(4a2e18));
+  cv_text(CAMP_NAMES[(int)(hash(c, 402) * 8)], sx + 0.5, oy - 18, 6, H(e8d8a0), AL_CENTER, BL_MIDDLE);
+  cv_text("CAMPGROUND", sx + 0.5, oy - 11.5, 6, H(e8d8a0), AL_CENTER, BL_MIDDLE);
+}
+static void drawCampDecor(double sx, double oy, double sz, double ty) {
+  double a0 = cv_get_alpha();
+  cv_alpha(a0 * 0.5); cv_fill(H(b8a47a)); ellipseFill(sx, oy - 1, 15, 3); cv_alpha(a0);   // the campsite's dirt pad
+  if (ty < 0.3) {                                               // a tent: A-frame or dome
+    col_t c = TENTS[(int)(sz * 5)][0], d = TENTS[(int)(sz * 5)][1];
+    if (sz < 0.6) {
+      for (int q = 0; q < 9; q++) { R(sx - q, oy - 9 + q, q * 2 + 1, 1, c); R(sx + 1, oy - 9 + q, q, 1, d); }
+      for (int q = 0; q < 5; q++) R(sx - (q >> 1), oy - 5 + q, (q >> 1) * 2 + 1, 1, H(2a1e18));
+      R(sx, oy - 10, 1, 1, H(5a3a22)); R(sx - 11, oy - 1, 1, 1, H(d8d0c0)); R(sx + 11, oy - 1, 1, 1, H(d8d0c0));
+    } else {
+      cv_fill(c); cv_begin(); cv_ellipse(sx, oy, 10, 9, 0, M_PI, 2 * M_PI); cv_fillpath();
+      cv_fill(d); cv_begin(); cv_ellipse(sx, oy, 10, 9, 0, -M_PI / 2, 0); cv_line(sx, oy); cv_fillpath();
+      R(sx - 9, oy - 4, 18, 1, shadec(d, 0.8)); R(sx - 3, oy - 5, 5, 5, H(2a1e18));
+    }
+  } else if (ty < 0.44) {                                       // a campfire with someone roasting a marshmallow
+    double i = sz * 20;
+    cv_alpha(a0 * 0.18); cv_fill(H(ffb040)); cv_circle(sx, oy - 3, 11 + sin(T * 9 + i)); cv_alpha(a0);
+    for (int q = 0; q < 5; q++) R(sx - 5 + q * 2 + (q > 2 ? 1 : 0), oy - 2, 2, 2, H(7a7a84));
+    R(sx - 3, oy - 3, 7, 1, H(5a3a22));
+    for (int q = 0; q < 4; q++) { double h = 2 + rnd(fabs(sin(T * 11 + q * 2.3 + i)) * 4); R(sx - 2 + q, oy - 3 - h, 1, h, q & 1 ? H(ffd23a) : H(ff7a2a)); }
+    for (int k = 0; k < 4; k++) {
+      double p = fmod(T * 0.45 + k / 4.0 + i, 1); cv_alpha(a0 * 0.4 * (1 - p)); cv_fill(H(d8d8e0));
+      cv_circle(sx + sin(p * 6 + i) * 2 + p * 6, oy - 9 - p * 28, 1.5 + p * 3); cv_alpha(a0);
+    }
+    R(sx + 7, oy - 2, 7, 2, H(6a4424)); R(sx + 9, oy - 8, 3, 6, sz < 0.5 ? H(3a5a9a) : H(9a3a4a)); R(sx + 9, oy - 10, 3, 2, H(e8b890)); R(sx + 9, oy - 11, 3, 1, H(5a3a22));
+    for (int q = 0; q < 5; q++) R(sx + 8 - q, oy - 6 - (q >> 1), 1, 1, H(8a6440));
+    R(sx + 2, oy - 9, 2, 2, H(f4f0e8));
+  } else if (ty < 0.56) {                                       // a travel trailer, sometimes with its awning out
+    col_t st = sz < 0.5 ? H(3a8ab8) : H(c8643a);
+    R(sx - 12, oy - 13, 24, 10, H(e8e4dc)); R(sx - 11, oy - 14, 22, 1, H(e8e4dc)); R(sx - 12, oy - 4, 24, 1, H(a8a49c));
+    R(sx - 12, oy - 8, 24, 1, st); R(sx - 9, oy - 12, 5, 3, H(5a7a9a)); R(sx + 3, oy - 12, 6, 3, H(5a7a9a)); R(sx - 2, oy - 11, 3, 7, H(b8b4ac));
+    R(sx - 5, oy - 3, 4, 3, H(1a1a1e)); R(sx + 12, oy - 4, 4, 1, H(4a4a52)); R(sx + 15, oy - 3, 1, 3, H(4a4a52));
+    if (sz > 0.3 && sz < 0.8) { R(sx - 14, oy - 15, 13, 2, st); R(sx - 14, oy - 13, 1, 10, H(8a8a92)); }
+  } else if (ty < 0.66) {                                       // a picnic table with a cooler on it
+    R(sx - 7, oy - 7, 15, 2, H(8a5a32)); R(sx - 7, oy - 7, 15, 1, H(a8784a)); R(sx - 9, oy - 4, 19, 1, H(7a4a2a));
+    R(sx - 5, oy - 5, 1, 5, H(6a4024)); R(sx + 5, oy - 5, 1, 5, H(6a4024));
+    R(sx - 3, oy - 10, 6, 3, sz < 0.5 ? H(c83a3a) : H(3a8ac8)); R(sx - 3, oy - 10, 6, 1, H(f4f0e8));
+  } else if (ty < 0.75) {                                       // a wagon with a canoe on the roof
+    static const col_t cars[4] = { H(4a6a8a), H(8a3a2a), H(5a7a4a), H(c8b48a) }; col_t col = cars[(int)(sz * 4)];
+    R(sx - 11, oy - 8, 22, 5, col); R(sx - 7, oy - 11, 15, 3, col); R(sx - 6, oy - 10, 6, 2, H(9ac0d8)); R(sx + 1, oy - 10, 6, 2, H(9ac0d8));
+    R(sx - 8, oy - 3, 4, 3, H(1a1a1e)); R(sx + 4, oy - 3, 4, 3, H(1a1a1e)); R(sx + 10, oy - 7, 1, 2, H(ffe8a0));
+    R(sx - 11, oy - 13, 22, 2, H(e8743a)); R(sx - 13, oy - 13, 2, 1, H(e8743a)); R(sx + 11, oy - 13, 2, 1, H(e8743a)); R(sx - 11, oy - 12, 22, 1, H(b8542a));
+  } else if (ty < 0.83) {                                       // a bear helping itself to an open cooler
+    int dir = sz < 0.5 ? 1 : -1;
+    R(sx + dir * 12 - 3, oy - 4, 7, 4, H(3a8ac8)); R(sx + dir * 12 - 3, oy - 4, 7, 1, H(f4f0e8)); R(sx + dir * 12 + (dir > 0 ? 4 : -4), oy - 9, 1, 5, H(f4f0e8));
+    R(sx + dir * 16, oy - 1, 2, 1, H(e8c43a)); R(sx + dir * 19, oy - 1, 2, 1, H(c8643a));
+    bear(sx + rnd(sin(T * 1.6 + sz * 9)), oy, dir, 1.3, sz > 0.8 ? H(6a4228) : H(2a1e18));
+  } else if (ty < 0.9) { R(sx - 6, oy - 7, 12, 7, H(6a5a3a)); R(sx - 6, oy - 7, 12, 1, H(8a7a5a)); R(sx - 1, oy - 5, 3, 1, H(2a2420)); R(sx - 6, oy - 1, 12, 1, H(4a3e28)); }   // a food locker
+  else if (ty < 0.95) {                                         // a hammock slung between two pines
+    pine(sx - 9, oy - 2, 22, H(24543a), H(3a7050)); pine(sx + 9, oy - 2, 24, H(24543a), H(3a7050));
+    double sw = sin(T * 1.3 + sz * 7);
+    for (int q = -7; q <= 7; q++) R(sx + q, rnd(oy - 12 + (49 - q * q) / 12.0 + sw * (1 - q * q / 49.0)), 1, 1, H(c8643a));
+    R(sx - 3, rnd(oy - 9 + sw), 6, 1, H(3a5a9a)); R(sx + 3, rnd(oy - 10 + sw), 2, 1, H(e8b890));
+  } else {                                                      // a lantern post
+    R(sx, oy - 15, 1, 15, H(4a3a2a)); R(sx, oy - 15, 4, 1, H(4a3a2a)); R(sx + 3, oy - 13, 2, 3, H(ffd27a));
+    cv_alpha(a0 * 0.25); cv_fill(H(ffd27a)); cv_circle(sx + 4, oy - 12, 5); cv_alpha(a0);
+  }
+}
 /* ---------- themed landscapes: the library, neon city and boardwalk pier (as THEMES in web/game.js) ----------
    They reskin every piece (floor, road, gaps, guardrails, barricades, backdrop, props) but ride exactly like any map.
    A holiday never lands on one (landOf), and a holiday look always wins over one. */
@@ -559,10 +628,17 @@ static void drawBackdrop(int zi, double camX) {
 }
 static void drawDecor(int zi, double camX, bool front) {
   const double CH = 90; int c0 = (int)floor(camX / CH) - 1, c1 = (int)floor((camX + LW) / CH) + 1, kind = ZONES[zi].kind;
-  for (int c = c0; c <= c1; c++) for (int k = 0; k < 2; k++) {
+  bool camps = kind == 3 && !SEASON;
+  if (camps) for (int c = (int)floor((camX - 60) / CAMP_W); c <= (int)floor((camX + LW + 30) / CAMP_W); c++) {
+    double ox = c * CAMP_W + 40; if (!campAt(ox) || campAt(ox - CAMP_W)) continue;   // a sign where each campground starts
+    roadAt(ox); double oy = fmax(HOR + 24, rnd(RC - RW / 2 - 6));
+    if ((oy > g.y) == front) campSign(rnd(ox - camX), oy, c);
+  }
+  for (int c = c0; c <= c1; c++) for (int k = 0; k < 4; k++) {
     int sd = k * 9 + zi * 100;
     double ox = c * CH + hash(c, sd + 1) * CH, f = hash(c, sd + 2), sz = hash(c, sd + 3), ty = hash(c, sd + 4);
     if (ox < 780) continue;                                    // the garage area stays clear
+    bool camp = camps && campAt(ox); if (k >= 2 && !camp) continue;   // campgrounds are busier
     double oy = rnd(HOR + 10 + f * (LH - HOR - 16));
     if ((oy > g.y) != front) continue;
     roadAt(ox); if (oy > RC - RW / 2 - 8 && oy < RC + RW / 2 + 8) continue;
@@ -575,7 +651,8 @@ static void drawDecor(int zi, double camX, bool front) {
     } else if (kind == 1) {
       if (ty < 0.65) { R(sx, oy - 16, 2, 16, H(8a5a3a)); cv_fill(H(2ea57f)); for (int q = 0; q < 6; q++) { double an = q / 6.0 * 6.283 + sz * 3; for (int r = 2; r < 11; r += 2) F(rnd(sx + 1 + cos(an) * r), rnd(oy - 16 + sin(an) * r * 0.55), 2, 2); } }
       else { R(sx, oy - 12, 1, 12, H(f1ecf7)); cv_fill(sz < 0.5 ? H(ff4a4a) : H(ffd21f)); F(sx - 7, oy - 14, 15, 3); F(sx - 5, oy - 16, 11, 2); }
-    } else if (kind == 3) drawYosemiteDecor(sx, oy, sz, ty);
+    } else if (camp) drawCampDecor(sx, oy, sz, ty);
+    else if (kind == 3) drawYosemiteDecor(sx, oy, sz, ty);
     else if (kind == 4) {
       if (ty < 0.45) { R(sx, oy - 4, 2, 4, H(5a3a22)); cv_fill(H(4a6a3a)); cv_circle(sx + 1, oy - 7, 4 + sz * 2); R(sx - 1, oy - 9, 2, 1, H(6a8a4a)); }   // a juniper
       else if (ty < 0.75) { R(sx - 5, oy - 5, 11, 5, H(a84a2a)); R(sx - 3, oy - 7, 6, 2, H(c8643a)); R(sx - 5, oy - 1, 11, 1, H(7a3020)); }   // a red rock
