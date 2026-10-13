@@ -1031,13 +1031,8 @@ void render_game(const char *hint) {
     if (g.bx > LW - 130) { double a = clampd((g.bx - (LW - 130)) / 130, 0, 1) * 0.6 * pulse, s2[2] = { 0, 1 }; col_t c[2] = { rgba(255, 45, 45, a), rgba(255, 45, 45, 0) }; cv_grad(LW - 70, 0, 70, LH, false, LW, LW - 70, 2, s2, c); }
   }
   if (g.flash > 0) R(0, 0, LW, LH, rgba(255, 255, 255, fmin(0.85, g.flash)));
-  if (st == ST_PLAY && g.t < 5 && !paused && hint) {
+  if (st == ST_PLAY && g.t < 5 && hint) {
     cv_alpha(0.7 + 0.3 * sin(T * 8));
     cv_text(hint, LW / 2 + 1, LH - 11, 11, H(7a1020), AL_CENTER, BL_ALPHA); cv_text(hint, LW / 2, LH - 12, 11, H(fff3d6), AL_CENTER, BL_ALPHA); cv_alpha(1);
-  }
-  if (paused && st == ST_PLAY) {
-    R(0, 0, LW, LH, rgba(10, 6, 18, .7));
-    cv_text("PAUSED", LW / 2, LH / 2, 26, H(ffd21f), AL_CENTER, BL_ALPHA);
-    cv_text("Press START to ride on", LW / 2, LH / 2 + 16, 9, H(f1ecf7), AL_CENTER, BL_ALPHA);
   }
 }

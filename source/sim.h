@@ -66,7 +66,6 @@ extern int LAND;         // the landscape: 0 desert, 1 coast, 2 forest, 3 yosemi
 
 // state
 extern int st;
-extern bool paused;
 extern Run g;
 extern double T;
 
@@ -98,6 +97,7 @@ int scoreOf(void);
 
 typedef struct { bool thr; double steer; double drag; } Input;   // steer -1..1 (arrows / circle pad), drag in logical px
 void update(double dt, const Input *in);
+void end_run_now(int cause);
 extern bool simGod;         // test builds only: ride through everything
 // called by update(); the front end makes the noise and the pictures
 void on_crash(void);

@@ -32,7 +32,7 @@ game runs silently.
 | Steer | D-pad up / down, the Circle Pad, or drag the stylus up and down on the bottom screen |
 | Menus | tap a button, or move with the D-pad and press A. B goes back. R on the title screen rides the Daily Dash |
 | Pick an old map | OLD MAPS, then up / down picks the week (the top screen shows it) and A rides it |
-| Pause | START. While paused, SELECT goes back to the menu |
+| Pause | there is none. Runs can't be paused: pressing HOME or closing the lid mid-ride ends the run and keeps the score |
 | Settings | the Settings button or SELECT on the menu: music, sound effects, steering speed, drag sensitivity, the clock and the controls |
 
 Go, steer up and steer down can each be moved to any button in Settings (pick the line, press A, then press the
