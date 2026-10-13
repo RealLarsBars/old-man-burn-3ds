@@ -18,6 +18,7 @@ static float clipXY[MAXCLIP][MAXCP * 2]; static int clipN[MAXCLIP];
 #define MAXPATH 512
 #define MAXSUB 16
 static float pathXY[MAXPATH * 2]; static int pathN, subStart[MAXSUB + 1], nsub;
+static double lastX, lastY;                                      // the path's current point, untransformed (for cv_quad / cv_bezier)
 
 static C3D_RenderTarget *rt, *top, *bot;
 static C3D_Tex rtTex;
@@ -49,7 +50,8 @@ static inline u32 c2dA(col_t c, double alpha) {
 }
 
 /* ---------- state ---------- */
-void cv_reset(void) { memset(&cur, 0, sizeof cur); cur.m.a = cur.m.d = 1; cur.alpha = 1; cur.fill = 0x000000ff; sp = 0; }
+static int curFont;                                              // the font cv_text uses (see cv_font)
+void cv_reset(void) { curFont = FONT_SYS; memset(&cur, 0, sizeof cur); cur.m.a = cur.m.d = 1; cur.alpha = 1; cur.fill = 0x000000ff; sp = 0; }
 void cv_save(void) { if (sp < 48) stk[sp++] = cur; cur.clipTop = cur.nclip; }
 void cv_restore(void) { if (sp > 0) cur = stk[--sp]; }
 void cv_translate(double x, double y) { cur.m.e += cur.m.a * x + cur.m.c * y; cur.m.f += cur.m.b * x + cur.m.d * y; }
@@ -144,14 +146,26 @@ void cv_rect(double x, double y, double w, double h) {
 }
 void cv_begin(void) { pathN = 0; nsub = 0; }
 void cv_move(double x, double y) {
+  lastX = x; lastY = y;
   if (nsub < MAXSUB) subStart[nsub++] = pathN;
   if (pathN < MAXPATH) { xf(x, y, &pathXY[pathN * 2], &pathXY[pathN * 2 + 1]); pathN++; }
 }
 void cv_line(double x, double y) {
   if (!nsub) { cv_move(x, y); return; }
+  lastX = x; lastY = y;
   if (pathN < MAXPATH) { xf(x, y, &pathXY[pathN * 2], &pathXY[pathN * 2 + 1]); pathN++; }
 }
 void cv_close(void) { }
+// quadraticCurveTo / bezierCurveTo, flattened into a few line segments (the curves on the bike are a few pixels long)
+void cv_quad(double cx, double cy, double x, double y) {
+  double x0 = lastX, y0 = lastY;
+  for (int i = 1; i <= 6; i++) { double t = i / 6.0, u = 1 - t; cv_line(u * u * x0 + 2 * u * t * cx + t * t * x, u * u * y0 + 2 * u * t * cy + t * t * y); }
+}
+void cv_bezier(double c1x, double c1y, double c2x, double c2y, double x, double y) {
+  double x0 = lastX, y0 = lastY;
+  for (int i = 1; i <= 8; i++) { double t = i / 8.0, u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+    cv_line(a * x0 + b * c1x + c * c2x + d * x, a * y0 + b * c1y + c * c2y + d * y); }
+}
 static double scaleOf(void) { return sqrt(fabs(cur.m.a * cur.m.d - cur.m.b * cur.m.c)); }
 void cv_ellipse(double cx, double cy, double rx, double ry, double rot, double a0, double a1) {
   // canvas: ellipse(x, y, rx, ry, rot, start, end); 7 (as the web game writes it) means a whole turn
@@ -185,6 +199,24 @@ void cv_stroke(col_t c, double w) {
   for (int s = 0; s < nsub; s++) {
     int a = subStart[s], b = s + 1 < nsub ? subStart[s + 1] : pathN;
     for (int i = a; i + 1 < b; i++) segment(pathXY[i * 2], pathXY[i * 2 + 1], pathXY[i * 2 + 2], pathXY[i * 2 + 3], hw, col);
+  }
+}
+void cv_stroke_dash(col_t c, double w, double on, double off) {   // setLineDash([on, off]): the pattern restarts on each subpath
+  u32 col = c2d(c); if (!(col >> 24)) return;
+  float sc = (float)scaleOf(), hw = (float)(w * sc / 2), pat[2] = { (float)(on * sc), (float)(off * sc) };
+  if (pat[0] + pat[1] < 0.05f) { cv_stroke(c, w); return; }
+  for (int s = 0; s < nsub; s++) {
+    int a = subStart[s], b = s + 1 < nsub ? subStart[s + 1] : pathN, k = 0; float left = pat[0];
+    for (int i = a; i + 1 < b; i++) {
+      float x0 = pathXY[i * 2], y0 = pathXY[i * 2 + 1], dx = pathXY[i * 2 + 2] - x0, dy = pathXY[i * 2 + 3] - y0, l = sqrtf(dx * dx + dy * dy), t = 0;
+      if (l < 1e-4f) continue;
+      while (t < l) {
+        float e = fminf(l, t + left);
+        if (!k) segment(x0 + dx * t / l, y0 + dy * t / l, x0 + dx * e / l, y0 + dy * e / l, hw, col);
+        left -= e - t; t = e;
+        if (left <= 1e-4f) { k ^= 1; left = pat[k]; }
+      }
+    }
   }
 }
 void cv_stroke_rect(double x, double y, double w, double h, col_t c, double lw) {
@@ -257,16 +289,28 @@ void cv_pattern(int which, double x, double y, double w, double h) {
   else C2D_DrawImage(img, &p, NULL);
 }
 
-/* ---------- text in the console's own font (it has the kana and kanji for the crash stamp) ---------- */
-static float textScale(double size) { return (float)(size / fontPx); }
+/* ---------- text: the console's own font (it has the kana and kanji for the crash stamp) and the web game's fonts ---------- */
+#include "mono_bin.h"
+#include "disp_bin.h"
+static C2D_Font fonts[NFONT]; static float fontEm[NFONT];
+static void loadFonts(void) {
+  fonts[FONT_MONO] = C2D_FontLoadFromMem(mono_bin, mono_bin_size);
+  fonts[FONT_DISP] = C2D_FontLoadFromMem(disp_bin, disp_bin_size);
+  fontEm[FONT_SYS] = fontPx;
+  for (int i = 1; i < NFONT; i++) fontEm[i] = fonts[i] ? C2D_FontGetInfo(fonts[i])->lineFeed * (i == FONT_DISP ? 0.48f : 0.78f) : fontPx;
+}
+int cv_get_font(void) { return curFont; }
+void cv_font(int f) { curFont = fonts[f] || f == FONT_SYS ? f : FONT_SYS; }
+static float textScale(double size) { return (float)(size / fontEm[curFont]); }
 // Parsing text is slow on the 3DS, so each string is parsed once and kept (the cache empties itself when full).
 #define TCACHE 96
 static C2D_TextBuf tcBuf; static struct { uint32_t h; C2D_Text t; } tc[TCACHE]; static int ntc;
 static const C2D_Text *textOf(const char *s) {
-  uint32_t h = 2166136261u; for (const char *p = s; *p; p++) h = (h ^ (uint8_t)*p) * 16777619u;
+  uint32_t h = 2166136261u + curFont; for (const char *p = s; *p; p++) h = (h ^ (uint8_t)*p) * 16777619u;
   for (int i = 0; i < ntc; i++) if (tc[i].h == h) return &tc[i].t;
   if (ntc == TCACHE || C2D_TextBufGetNumGlyphs(tcBuf) > 3500) { C2D_TextBufClear(tcBuf); ntc = 0; }
-  C2D_Text *t = &tc[ntc].t; if (!C2D_TextParse(t, tcBuf, s)) { C2D_TextBufClear(tcBuf); ntc = 0; t = &tc[0].t; if (!C2D_TextParse(t, tcBuf, s)) return NULL; }
+  C2D_Font f = fonts[curFont];
+  C2D_Text *t = &tc[ntc].t; if (!C2D_TextFontParse(t, f, tcBuf, s)) { C2D_TextBufClear(tcBuf); ntc = 0; t = &tc[0].t; if (!C2D_TextFontParse(t, f, tcBuf, s)) return NULL; }
   C2D_TextOptimize(t); tc[ntc].h = h; ntc++;
   return t;
 }
@@ -293,9 +337,11 @@ static void blendNormal(void);
 typedef struct { C3D_Tex tex; C3D_RenderTarget *t; int w, h; float sc, px, py; Tex3DS_SubTexture sub; } Sprite;
 static Sprite spr[NSPR];
 static int pow2(int v) { int p = 8; while (p < v) p <<= 1; return p; }
-void spr_begin(int id, int w, int h, double sc, double px, double py) {
+bool spr_begin(int id, int w, int h, double sc, double px, double py) {
   Sprite *S = &spr[id];
-  if (!S->t) { int tw = pow2(w), th = pow2(h); C3D_TexInitVRAM(&S->tex, tw, th, GPU_RGBA8); C3D_TexSetFilter(&S->tex, GPU_LINEAR, GPU_LINEAR);
+  if (!S->t) { int tw = pow2(w), th = pow2(h);
+    if (!C3D_TexInitVRAM(&S->tex, tw, th, GPU_RGBA8)) return false;
+    C3D_TexSetFilter(&S->tex, GPU_LINEAR, GPU_LINEAR);
     S->t = C3D_RenderTargetCreateFromTex(&S->tex, GPU_TEXFACE_2D, 0, -1);
     S->sub = (Tex3DS_SubTexture){ (u16)w, (u16)h, 0.0f, 1.0f, (float)w / tw, 1.0f - (float)h / th }; }
   S->w = w; S->h = h; S->sc = (float)sc; S->px = (float)px; S->py = (float)py;
@@ -303,6 +349,7 @@ void spr_begin(int id, int w, int h, double sc, double px, double py) {
   C2D_SceneBegin(S->t);
   C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
   cv_reset(); cv_scale(sc, sc); cv_translate(px, py);
+  return true;
 }
 void cv_sprite(int id) {                                     // the sprite's pivot (its local origin) lands on the current origin
   Sprite *S = &spr[id]; if (!S->t) return;
@@ -330,9 +377,10 @@ void gfx_init(void) {
   rt = C3D_RenderTargetCreateFromTex(&rtTex, GPU_TEXFACE_2D, 0, -1);
   tbuf = C2D_TextBufNew(4096); tcBuf = C2D_TextBufNew(4096);
   fontPx = C2D_FontGetInfo(NULL)->lineFeed * 0.82f;
+  loadFonts();
   cv_reset();
 }
-void gfx_exit(void) { C2D_TextBufDelete(tbuf); C2D_TextBufDelete(tcBuf); C2D_Fini(); C3D_Fini(); gfxExit(); }
+void gfx_exit(void) { for (int i = 1; i < NFONT; i++) if (fonts[i]) C2D_FontFree(fonts[i]); C2D_TextBufDelete(tbuf); C2D_TextBufDelete(tcBuf); C2D_Fini(); C3D_Fini(); gfxExit(); }
 static void blendNormal(void) {    // keep the off-screen picture opaque: alpha accumulates towards 1
   C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 }

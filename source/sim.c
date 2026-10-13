@@ -305,13 +305,14 @@ static void crash(int cause) {
 static double dirtAcc = 0;
 static void dirtCloud(double dt) {
   uint32_t cols[4]; dirt_colors(cols);
-  dirtAcc += dt * (90 + 50 * g.thr + 0.03 * g.v);                    // puffs per second: more on the throttle and at speed
+  dirtAcc += dt * (90 + 50 * g.thr + 0.03 * g.v) * 0.45;             // puffs per second: more on the throttle and at speed. Under half
+                                                                     // the web's rate, a bit bigger: 180 growing puffs cost an Old 3DS ~4 ms
   while (dirtAcc >= 1) {
     dirtAcc -= 1;
     double life = 0.8 + frand() * 0.6;
     Part *p = addPart(g.parts, &g.nparts, MAX_PARTS); if (!p) return;
     p->x = g.cam + g.bx - 16 - frand() * 8; p->y = g.y - 2 - frand() * 4; p->vx = -(40 + frand() * 90); p->vy = -(18 + frand() * 46);
-    p->life = life; p->max = life; p->c = cols[(int)(frand() * 4)]; p->s = 3; p->grow = 20 + frand() * 16; p->grav = -14; p->round = 1;
+    p->life = life; p->max = life; p->c = cols[(int)(frand() * 4)]; p->s = 4; p->grow = 25 + frand() * 20; p->grav = -14; p->round = 1;
   }
 }
 static void puff(int dust) {
@@ -388,4 +389,10 @@ void update(double dt, const Input *in) {
     }
     g.nfx = j; }
   g.shake *= exp(-dt * 5); g.flash = fmax(0, g.flash - dt * 2);
+}
+
+int swervesPassed(double wx) {                                  // swerves the bike is already past (the achievements count them)
+  int i = lbSw(wx);
+  if (i > 0 && sw[i - 1].x + sw[i - 1].len >= wx) i--;
+  return i;
 }

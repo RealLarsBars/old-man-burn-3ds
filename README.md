@@ -1,12 +1,12 @@
 # Old Man Burn for the Nintendo 3DS
 
-An offline homebrew port of [Old Man Burn](https://github.com/RealLarsBars/old-man-burn). It rides this week's map,
-today's Daily Dash and every old weekly map, built from the same seeds with the same road rules, so the roads are the
-ones Discord is riding. There are no coins, pot, leaderboards, garage or replays: your best on each map is kept on the
-SD card.
+A homebrew port of [Old Man Burn](https://github.com/RealLarsBars/old-man-burn). It rides this week's map, today's
+Daily Dash and every old weekly map, built from the same seeds with the same road rules, so the roads are the ones
+Discord is riding. It plays fully offline, with the garage and achievements kept on the SD card; linked to Discord over
+Wi-Fi it shares your profile, puts weekly runs on the board and uploads replays. There are no coins or pot.
 
 - The top screen is the game. It's drawn at the web game's 480x270 and scaled to fit the 400x240 screen.
-- The bottom screen has the map picker, your best, the score while you ride and the game-over card.
+- The bottom screen has the menus, your best, the score while you ride and the game-over card.
 - Halloween and Christmas maps get their seasonal look, and Halloween maps play the Haunted Organ, as on the web.
 - Music and sound are a small synth playing the same notes as the web game's Web Audio code. It runs on the console's
   second CPU core, so it doesn't slow the game down.
@@ -27,12 +27,60 @@ game runs silently.
 |---|---|
 | Go | hold L |
 | Steer | D-pad up / down, the Circle Pad, or drag the stylus up and down on the bottom screen |
-| Pick a map | L / R, or tap the tabs. On Old Maps, left / right picks the week |
+| Menus | tap a button, or move with the D-pad and press A. B goes back. R on the title screen rides the Daily Dash |
+| Pick an old map | OLD MAPS, then up / down picks the week (the top screen shows it) and A rides it |
 | Pause | START. While paused, SELECT goes back to the menu |
-| Settings | SELECT on the menu: music, sound effects, the clock and the controls |
+| Settings | the Settings button or SELECT on the menu: music, sound effects, steering speed, drag sensitivity, the clock and the controls |
 
 Go, steer up and steer down can each be moved to any button in Settings (pick the line, press A, then press the
 button). Dragging on the touch screen and the Circle Pad always steer as well.
+
+Two sliders in Settings tune the steering, each from 0.5x to 2.0x: "Steering speed" is how fast the bike moves while you
+hold up or down (D-pad, Circle Pad or the remapped buttons), and "Drag sensitivity" is how far it moves for each bit
+you drag the stylus.
+
+## The garage and achievements
+
+GARAGE on the title screen dresses the Old Man and his bike: paint, cardigan, hat, wheels, decal, gear, carrier, cane
+and trail, the same 124 items as the Discord version, each unlocked by the same achievement. Up / down picks a slot,
+left / right (or tapping either side) changes it, and the top screen shows the bike up close. The Goals tab (or L / R)
+lists every achievement by what it counts, with your progress.
+
+There are no coins or leaderboards offline, so the achievements that count them have offline goals instead: rides of
+500 m or more for coins put in, 5,000 on a weekly map for a pot win, new bests for pot coins, 2,000 in a Daily Dash for
+a Daily Dash win, and 3,000 on an old map or a holiday map for a top 3. Stats and the loadout are kept in
+`sdmc:/3ds/oldmanburn/profile.txt`. `tools/achgen.py` rebuilds `source/achdata.c` from `tools/achievements.json`
+(copy it over from the web game's `web/achievements.json` when that changes).
+
+## Linking to Discord
+
+Settings > Discord links the console to your Discord account: in the Discord game press LINK A 3DS in Settings, then
+type its 6-digit code on the 3DS. After that, whenever the console has Wi-Fi:
+
+- the maps follow the server's clock (no need for the clock offset),
+- the profile is shared: achievements unlocked on Discord unlock their items here too, and the loadout follows you,
+- weekly runs go on the weekly board with a 3DS tag (they never count for the pot or the runner-up refund),
+- every run's replay uploads and shows up under 3DS RIDES in the Discord game (Daily Dash ones never get posted to chat).
+
+Runs wait in `sdmc:/3ds/oldmanburn/outbox/` until they're sent. The link is kept in `sdmc:/3ds/oldmanburn/link.txt`
+(a `server https://...` line there points the game at another server, for testing). HTTPS goes through curl and
+mbedTLS from devkitPro's portlibs (`3ds-curl`, `3ds-mbedtls`, `3ds-jansson`, `3ds-zlib`), with the root certificates in
+`data/cacert.bin`.
+
+## Replay codes
+
+Without Wi-Fi, "Replay code" on the game over screen turns the run into a long text code, shows it as a QR code on the
+bottom screen and saves it in `sdmc:/3ds/oldmanburn/codes/`. Scan it with a phone and paste it into IMPORT under 3DS
+RIDES in Discord. The code is `OMB1.` plus base64url (no padding) of zlib-compressed bytes, little-endian:
+
+```
+u8 version (1), u8 mode (0 week, 1 Daily Dash, 2 old map), u32 seed, u32 score, u8 end (0 none, 1 behind, 2 ahead, 3 rail)
+u8 nlook, then per item: u8 slot (paint, coat, cap, rims, decal, gear, carrier, cane, trail), u8 length, the item id
+u16 nframes, 0.2 s apart
+frame 0:   i32 camera*4, u16 bike x*4, u16 bike y*4, u8 flags
+frame i>0: i16 camera change (px, rounded), u8 bike x/2, u8 bike y-15, u8 flags
+flags: bit 7 throttle, bits 0-6 wheelie*127
+```
 
 ## Reporting lag
 
@@ -40,6 +88,11 @@ Every ride adds a few lines to `sdmc:/3ds/oldmanburn/perf.txt`: how many frames 
 game, sound and drawing took on average and at worst, how often the sound ran dry, and the slowest frames with where on
 the road they happened. Send that file along with a lag report. Holding Y shows the CPU and GPU load on the bottom
 screen while you play.
+
+To time every cosmetic, open the garage and press SELECT. The bench shows each item on its own for half a second and
+writes `sdmc:/3ds/oldmanburn/bench.txt`: the CPU time of a frame with it on (average and worst), and the one-off cost of
+drawing the bike sprite. Animated items draw ten frames of it once, then loop them. B stops it early. Emulator timings
+mean nothing here, so run it on the console.
 
 ## The clock
 
@@ -80,5 +133,12 @@ When the road rules change on the web (a new `SW5_FROM`, say), make the same cha
 - `source/draw.c`: the game picture: backdrop, road, rails, decor, the garage, the Old Man and the crash
 - `source/gfx.c`: a small slice of the canvas API on citro2d, so `draw.c` reads like the JavaScript
 - `source/audio.c`: the music and sound
-- `source/main.c`: the menus, input, saves and the clock
+- `source/main.c`: the screens, input, saves and the clock
+- `source/look.c`: the cosmetics, drawn as the web game draws them; static parts are cached in the bike sprite
+- `source/ach.c`: achievements, stats and the loadout, saved to the SD card
+- `source/ui.c`: the menu look of the web game: buttons with an offset shadow, panels, checkboxes, sliders, D-pad focus
+- `fonts/`: DM Mono and Dela Gothic One (SIL Open Font License), the web game's fonts. `fonts/build.sh` turns them into
+  the `data/*.bin` system fonts the game embeds
 - `source/perf.c`: the performance log
+- `source/net.c`, `source/sync.c`: HTTPS on a background thread, and linking / syncing with the Discord game
+- `source/replay.c`: recording runs and the replay codes (`source/qrcodegen.c` is Project Nayuki's QR encoder, MIT)

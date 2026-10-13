@@ -1,0 +1,2023 @@
+{
+ "slots": [
+  {
+   "id": "paint",
+   "name": "Paint"
+  },
+  {
+   "id": "coat",
+   "name": "Cardigan"
+  },
+  {
+   "id": "cap",
+   "name": "Hat"
+  },
+  {
+   "id": "rims",
+   "name": "Wheels"
+  },
+  {
+   "id": "decal",
+   "name": "Decal"
+  },
+  {
+   "id": "gear",
+   "name": "Gear"
+  },
+  {
+   "id": "carrier",
+   "name": "Carrier"
+  },
+  {
+   "id": "cane",
+   "name": "Cane"
+  },
+  {
+   "id": "trail",
+   "name": "Trail"
+  }
+ ],
+ "items": [
+  {
+   "slot": "paint",
+   "id": "red",
+   "name": "Cherry Red"
+  },
+  {
+   "slot": "paint",
+   "id": "gold",
+   "name": "Gold Plate"
+  },
+  {
+   "slot": "paint",
+   "id": "black",
+   "name": "Midnight Black"
+  },
+  {
+   "slot": "paint",
+   "id": "pink",
+   "name": "Neon Pink"
+  },
+  {
+   "slot": "paint",
+   "id": "cyan",
+   "name": "Neon Cyan"
+  },
+  {
+   "slot": "coat",
+   "id": "navy",
+   "name": "Argyle Cardigan"
+  },
+  {
+   "slot": "coat",
+   "id": "green",
+   "name": "Camo Cardigan"
+  },
+  {
+   "slot": "coat",
+   "id": "mustard",
+   "name": "Hawaiian Shirt"
+  },
+  {
+   "slot": "coat",
+   "id": "purple",
+   "name": "Galaxy Cardigan"
+  },
+  {
+   "slot": "coat",
+   "id": "hivis",
+   "name": "Hi-Vis Vest"
+  },
+  {
+   "slot": "cap",
+   "id": "redcap",
+   "name": "Red Cap"
+  },
+  {
+   "slot": "cap",
+   "id": "straw",
+   "name": "Straw Hat"
+  },
+  {
+   "slot": "cap",
+   "id": "hardhat",
+   "name": "Hard Hat"
+  },
+  {
+   "slot": "cap",
+   "id": "nightcap",
+   "name": "Nightcap"
+  },
+  {
+   "slot": "cap",
+   "id": "crown",
+   "name": "Golden Crown"
+  },
+  {
+   "slot": "rims",
+   "id": "white",
+   "name": "White Walls"
+  },
+  {
+   "slot": "rims",
+   "id": "gold",
+   "name": "Gold Rims"
+  },
+  {
+   "slot": "rims",
+   "id": "cyan",
+   "name": "Neon Rims"
+  },
+  {
+   "slot": "decal",
+   "id": "stripe",
+   "name": "Racing Stripe"
+  },
+  {
+   "slot": "decal",
+   "id": "flames",
+   "name": "Flame Job"
+  },
+  {
+   "slot": "decal",
+   "id": "plate",
+   "name": "Number 52 Plate"
+  },
+  {
+   "slot": "gear",
+   "id": "shades",
+   "name": "Aviator Shades"
+  },
+  {
+   "slot": "gear",
+   "id": "streamers",
+   "name": "Handlebar Streamers"
+  },
+  {
+   "slot": "gear",
+   "id": "charm",
+   "name": "Lucky Charm"
+  },
+  {
+   "slot": "gear",
+   "id": "scarf",
+   "name": "Red Scarf"
+  },
+  {
+   "slot": "trail",
+   "id": "sparks",
+   "name": "Blue Sparks"
+  },
+  {
+   "slot": "trail",
+   "id": "rainbow",
+   "name": "Rainbow Trail"
+  },
+  {
+   "slot": "trail",
+   "id": "flames",
+   "name": "Exhaust Flames"
+  },
+  {
+   "slot": "trail",
+   "id": "gold",
+   "name": "Gold Glitter"
+  },
+  {
+   "slot": "trail",
+   "id": "lines",
+   "name": "Speed Lines"
+  },
+  {
+   "slot": "coat",
+   "id": "plaid",
+   "name": "Lumberjack Plaid"
+  },
+  {
+   "slot": "coat",
+   "id": "checker",
+   "name": "Checkered Flag Coat"
+  },
+  {
+   "slot": "coat",
+   "id": "zebra",
+   "name": "Zebra Stripes"
+  },
+  {
+   "slot": "coat",
+   "id": "tiedye",
+   "name": "Tie-Dye Cardigan"
+  },
+  {
+   "slot": "coat",
+   "id": "disco",
+   "name": "Disco Ball Jacket"
+  },
+  {
+   "slot": "coat",
+   "id": "flame",
+   "name": "Flame Cardigan"
+  },
+  {
+   "slot": "coat",
+   "id": "rainbow",
+   "name": "Rainbow Cardigan"
+  },
+  {
+   "slot": "rims",
+   "id": "spokes",
+   "name": "Chrome Spokes"
+  },
+  {
+   "slot": "rims",
+   "id": "spinner",
+   "name": "Spinner Hubcaps"
+  },
+  {
+   "slot": "rims",
+   "id": "rainbow",
+   "name": "Prismatic Rims"
+  },
+  {
+   "slot": "rims",
+   "id": "flame",
+   "name": "Fire Wheels"
+  },
+  {
+   "slot": "rims",
+   "id": "pizza",
+   "name": "Pizza Wheels"
+  },
+  {
+   "slot": "rims",
+   "id": "vinyl",
+   "name": "Vinyl Records"
+  },
+  {
+   "slot": "rims",
+   "id": "star",
+   "name": "Star Wheels"
+  },
+  {
+   "slot": "decal",
+   "id": "checker",
+   "name": "Checkered Band"
+  },
+  {
+   "slot": "decal",
+   "id": "lightning",
+   "name": "Lightning Bolt"
+  },
+  {
+   "slot": "decal",
+   "id": "skull",
+   "name": "Skull"
+  },
+  {
+   "slot": "decal",
+   "id": "stars",
+   "name": "Starburst"
+  },
+  {
+   "slot": "decal",
+   "id": "eight",
+   "name": "Eight Ball"
+  },
+  {
+   "slot": "decal",
+   "id": "hearts",
+   "name": "Hearts"
+  },
+  {
+   "slot": "decal",
+   "id": "kanji",
+   "name": "Gekitotsu Kanji"
+  },
+  {
+   "slot": "gear",
+   "id": "beer",
+   "name": "Cold Beer"
+  },
+  {
+   "slot": "gear",
+   "id": "monocle",
+   "name": "Monocle"
+  },
+  {
+   "slot": "gear",
+   "id": "pipe",
+   "name": "Pipe"
+  },
+  {
+   "slot": "gear",
+   "id": "dice",
+   "name": "Fuzzy Dice"
+  },
+  {
+   "slot": "gear",
+   "id": "pirate",
+   "name": "Pirate Flag"
+  },
+  {
+   "slot": "gear",
+   "id": "foxtail",
+   "name": "Fox Tail"
+  },
+  {
+   "slot": "gear",
+   "id": "goggles",
+   "name": "Dust Goggles"
+  },
+  {
+   "slot": "gear",
+   "id": "bowtie",
+   "name": "Bow Tie"
+  },
+  {
+   "slot": "gear",
+   "id": "pigeon",
+   "name": "Pigeon Pal"
+  },
+  {
+   "slot": "gear",
+   "id": "mug",
+   "name": "Coffee Mug"
+  },
+  {
+   "slot": "carrier",
+   "id": "crate",
+   "name": "Milk Crate"
+  },
+  {
+   "slot": "carrier",
+   "id": "wicker",
+   "name": "Picnic Basket"
+  },
+  {
+   "slot": "carrier",
+   "id": "pizza",
+   "name": "Pizza Box"
+  },
+  {
+   "slot": "carrier",
+   "id": "toolbox",
+   "name": "Toolbox"
+  },
+  {
+   "slot": "carrier",
+   "id": "cooler",
+   "name": "Cooler"
+  },
+  {
+   "slot": "carrier",
+   "id": "guitar",
+   "name": "Guitar Case"
+  },
+  {
+   "slot": "carrier",
+   "id": "duffel",
+   "name": "Gym Duffel"
+  },
+  {
+   "slot": "carrier",
+   "id": "chest",
+   "name": "Treasure Chest"
+  },
+  {
+   "slot": "carrier",
+   "id": "boombox",
+   "name": "Boombox"
+  },
+  {
+   "slot": "carrier",
+   "id": "lunch",
+   "name": "Lunch Pail"
+  },
+  {
+   "slot": "cane",
+   "id": "eightball",
+   "name": "Eight Ball Cane"
+  },
+  {
+   "slot": "cane",
+   "id": "candy",
+   "name": "Candy Cane"
+  },
+  {
+   "slot": "cane",
+   "id": "golden",
+   "name": "Golden Cane"
+  },
+  {
+   "slot": "cane",
+   "id": "neon",
+   "name": "Neon Cane"
+  },
+  {
+   "slot": "cane",
+   "id": "poolcue",
+   "name": "Pool Cue"
+  },
+  {
+   "slot": "cane",
+   "id": "skull",
+   "name": "Skull Cane"
+  },
+  {
+   "slot": "cane",
+   "id": "flamingo",
+   "name": "Flamingo Cane"
+  },
+  {
+   "slot": "cane",
+   "id": "wizard",
+   "name": "Wizard Staff"
+  },
+  {
+   "slot": "cane",
+   "id": "fishing",
+   "name": "Fishing Rod"
+  },
+  {
+   "slot": "cane",
+   "id": "lollipop",
+   "name": "Lollipop Cane"
+  },
+  {
+   "slot": "cap",
+   "id": "cowboy",
+   "name": "Cowboy Hat"
+  },
+  {
+   "slot": "cap",
+   "id": "tophat",
+   "name": "Top Hat"
+  },
+  {
+   "slot": "cap",
+   "id": "wizard",
+   "name": "Wizard Hat"
+  },
+  {
+   "slot": "cap",
+   "id": "chef",
+   "name": "Chef Hat"
+  },
+  {
+   "slot": "cap",
+   "id": "party",
+   "name": "Party Hat"
+  },
+  {
+   "slot": "cap",
+   "id": "viking",
+   "name": "Viking Helmet"
+  },
+  {
+   "slot": "cap",
+   "id": "propeller",
+   "name": "Propeller Beanie"
+  },
+  {
+   "slot": "cap",
+   "id": "cone",
+   "name": "Traffic Cone"
+  },
+  {
+   "slot": "cane",
+   "id": "golf",
+   "name": "Golf Club"
+  },
+  {
+   "slot": "cane",
+   "id": "bouquet",
+   "name": "Flower Bouquet"
+  },
+  {
+   "slot": "cane",
+   "id": "cat",
+   "name": "Cat Pal"
+  },
+  {
+   "slot": "decal",
+   "id": "sun",
+   "name": "Sunburst"
+  },
+  {
+   "slot": "carrier",
+   "id": "paperbag",
+   "name": "Paper Route Bag"
+  },
+  {
+   "slot": "gear",
+   "id": "watch",
+   "name": "Pocket Watch"
+  },
+  {
+   "slot": "rims",
+   "id": "sunwheel",
+   "name": "Sun Wheels"
+  },
+  {
+   "slot": "paint",
+   "id": "sunrise",
+   "name": "Sunrise Orange"
+  },
+  {
+   "slot": "paint",
+   "id": "goldenhour",
+   "name": "Golden Hour"
+  },
+  {
+   "slot": "cap",
+   "id": "laurel",
+   "name": "Laurel Wreath"
+  },
+  {
+   "slot": "coat",
+   "id": "varsity",
+   "name": "Champion Jacket"
+  },
+  {
+   "slot": "cane",
+   "id": "trophy",
+   "name": "Trophy Cane"
+  },
+  {
+   "slot": "coat",
+   "id": "sunset",
+   "name": "Sunset Cardigan"
+  },
+  {
+   "slot": "paint",
+   "id": "money",
+   "name": "Money Green"
+  },
+  {
+   "slot": "paint",
+   "id": "holo",
+   "name": "Hologram"
+  },
+  {
+   "slot": "paint",
+   "id": "chrome",
+   "name": "Chrome"
+  },
+  {
+   "slot": "trail",
+   "id": "coins",
+   "name": "Coin Shower"
+  },
+  {
+   "slot": "trail",
+   "id": "bubbles",
+   "name": "Bubbles"
+  },
+  {
+   "slot": "trail",
+   "id": "smoke",
+   "name": "Smoke Rings"
+  },
+  {
+   "slot": "carrier",
+   "id": "piggy",
+   "name": "Piggy Bank"
+  },
+  {
+   "slot": "gear",
+   "id": "medal",
+   "name": "Bronze Medal"
+  },
+  {
+   "slot": "decal",
+   "id": "roundel",
+   "name": "Racing Roundel"
+  },
+  {
+   "slot": "coat",
+   "id": "greaser",
+   "name": "Greaser Jacket"
+  },
+  {
+   "slot": "gear",
+   "id": "chain",
+   "name": "Gold Chain"
+  },
+  {
+   "slot": "cap",
+   "id": "pumpkin",
+   "name": "Pumpkin Head"
+  },
+  {
+   "slot": "trail",
+   "id": "bats",
+   "name": "Bat Swarm"
+  },
+  {
+   "slot": "coat",
+   "id": "skeleton",
+   "name": "Skeleton Suit"
+  },
+  {
+   "slot": "cap",
+   "id": "santa",
+   "name": "Santa Hat"
+  },
+  {
+   "slot": "trail",
+   "id": "snow",
+   "name": "Snowfall"
+  },
+  {
+   "slot": "coat",
+   "id": "xmas",
+   "name": "Ugly Christmas Sweater"
+  },
+  {
+   "slot": "rims",
+   "id": "web",
+   "name": "Spiderweb Rims"
+  },
+  {
+   "slot": "decal",
+   "id": "batmoon",
+   "name": "Bat Moon"
+  },
+  {
+   "slot": "gear",
+   "id": "spider",
+   "name": "Dangling Spider"
+  },
+  {
+   "slot": "carrier",
+   "id": "cauldron",
+   "name": "Bubbling Cauldron"
+  },
+  {
+   "slot": "cane",
+   "id": "broom",
+   "name": "Witch's Broom"
+  }
+ ],
+ "achievements": [
+  {
+   "id": "first_mile",
+   "name": "Warming Up",
+   "desc": "Ride 1,000 meters in total.",
+   "stat": "total_m",
+   "goal": 1000,
+   "reward": {
+    "slot": "paint",
+    "item": "red"
+   }
+  },
+  {
+   "id": "road_tripper",
+   "name": "Road Tripper",
+   "desc": "Ride 10,000 meters in total.",
+   "stat": "total_m",
+   "goal": 10000,
+   "reward": {
+    "slot": "coat",
+    "item": "navy"
+   }
+  },
+  {
+   "id": "cross_country",
+   "name": "Cross Country",
+   "desc": "Ride 50,000 meters in total.",
+   "stat": "total_m",
+   "goal": 50000,
+   "reward": {
+    "slot": "paint",
+    "item": "gold"
+   }
+  },
+  {
+   "id": "odometer",
+   "name": "Odometer Rollover",
+   "desc": "Ride 250,000 meters in total.",
+   "stat": "total_m",
+   "goal": 250000,
+   "reward": {
+    "slot": "trail",
+    "item": "gold"
+   }
+  },
+  {
+   "id": "driveway",
+   "name": "Out the Driveway",
+   "desc": "Ride 500 meters in one run.",
+   "stat": "best_m",
+   "goal": 500,
+   "reward": {
+    "slot": "cap",
+    "item": "redcap"
+   }
+  },
+  {
+   "id": "cooking",
+   "name": "Now We're Cooking",
+   "desc": "Ride 1,500 meters in one run.",
+   "stat": "best_m",
+   "goal": 1500,
+   "reward": {
+    "slot": "decal",
+    "item": "stripe"
+   }
+  },
+  {
+   "id": "legend",
+   "name": "Highway Legend",
+   "desc": "Ride 3,000 meters in one run.",
+   "stat": "best_m",
+   "goal": 3000,
+   "reward": {
+    "slot": "decal",
+    "item": "flames"
+   }
+  },
+  {
+   "id": "long_haul",
+   "name": "Long Haul",
+   "desc": "Ride 5,000 meters in one run.",
+   "stat": "best_m",
+   "goal": 5000,
+   "reward": {
+    "slot": "gear",
+    "item": "shades"
+   }
+  },
+  {
+   "id": "marathon",
+   "name": "Marathon Man",
+   "desc": "Ride 8,000 meters in one run.",
+   "stat": "best_m",
+   "goal": 8000,
+   "reward": {
+    "slot": "trail",
+    "item": "lines"
+   }
+  },
+  {
+   "id": "first_coin",
+   "name": "First Coin",
+   "desc": "Sponsor your first ride with a coin.",
+   "stat": "coins",
+   "goal": 1,
+   "reward": {
+    "slot": "rims",
+    "item": "white"
+   }
+  },
+  {
+   "id": "regular",
+   "name": "Regular",
+   "desc": "Put in 5 coins.",
+   "stat": "coins",
+   "goal": 5,
+   "reward": {
+    "slot": "coat",
+    "item": "green"
+   }
+  },
+  {
+   "id": "high_roller",
+   "name": "High Roller",
+   "desc": "Put in 20 coins.",
+   "stat": "coins",
+   "goal": 20,
+   "reward": {
+    "slot": "rims",
+    "item": "gold"
+   }
+  },
+  {
+   "id": "favorite",
+   "name": "Old Man's Favorite",
+   "desc": "Put in 50 coins.",
+   "stat": "coins",
+   "goal": 50,
+   "reward": {
+    "slot": "gear",
+    "item": "charm"
+   }
+  },
+  {
+   "id": "hang",
+   "name": "Getting the Hang",
+   "desc": "Finish 10 rides.",
+   "stat": "runs",
+   "goal": 10,
+   "reward": {
+    "slot": "coat",
+    "item": "mustard"
+   }
+  },
+  {
+   "id": "habit",
+   "name": "Creature of Habit",
+   "desc": "Finish 50 rides.",
+   "stat": "runs",
+   "goal": 50,
+   "reward": {
+    "slot": "paint",
+    "item": "black"
+   }
+  },
+  {
+   "id": "obsessed",
+   "name": "Obsessed",
+   "desc": "Finish 200 rides.",
+   "stat": "runs",
+   "goal": 200,
+   "reward": {
+    "slot": "trail",
+    "item": "flames"
+   }
+  },
+  {
+   "id": "pop_it",
+   "name": "Pop It",
+   "desc": "Spend 60 seconds in a wheelie.",
+   "stat": "wheelie_s",
+   "goal": 60,
+   "reward": {
+    "slot": "decal",
+    "item": "plate"
+   }
+  },
+  {
+   "id": "wheelie_king",
+   "name": "Wheelie King",
+   "desc": "Spend 10 minutes in a wheelie.",
+   "stat": "wheelie_s",
+   "goal": 600,
+   "reward": {
+    "slot": "gear",
+    "item": "streamers"
+   }
+  },
+  {
+   "id": "offroader",
+   "name": "Off-Roader",
+   "desc": "Spend 60 seconds in the dirt.",
+   "stat": "sand_s",
+   "goal": 60,
+   "reward": {
+    "slot": "cap",
+    "item": "straw"
+   }
+  },
+  {
+   "id": "dust_bowl",
+   "name": "Dust Bowl",
+   "desc": "Spend 10 minutes in the dirt.",
+   "stat": "sand_s",
+   "goal": 600,
+   "reward": {
+    "slot": "rims",
+    "item": "cyan"
+   }
+  },
+  {
+   "id": "gap1",
+   "name": "Mind the Gap",
+   "desc": "Ride past 10 gaps.",
+   "stat": "gaps",
+   "goal": 10,
+   "reward": {
+    "slot": "trail",
+    "item": "sparks"
+   }
+  },
+  {
+   "id": "gap_year",
+   "name": "Gap Year",
+   "desc": "Ride past 100 gaps.",
+   "stat": "gaps",
+   "goal": 100,
+   "reward": {
+    "slot": "trail",
+    "item": "rainbow"
+   }
+  },
+  {
+   "id": "close_shave",
+   "name": "Close Shave",
+   "desc": "Ride past 10 barricades.",
+   "stat": "rails",
+   "goal": 10,
+   "reward": {
+    "slot": "gear",
+    "item": "scarf"
+   }
+  },
+  {
+   "id": "crash_dummy",
+   "name": "Crash Test Dummy",
+   "desc": "Hit a wall or barricade 10 times.",
+   "stat": "crash_rail",
+   "goal": 10,
+   "reward": {
+    "slot": "cap",
+    "item": "hardhat"
+   }
+  },
+  {
+   "id": "swerve_nerve",
+   "name": "Swerve Nerve",
+   "desc": "Ride through 25 road swerves.",
+   "stat": "swerves",
+   "goal": 25,
+   "reward": {
+    "slot": "paint",
+    "item": "pink"
+   }
+  },
+  {
+   "id": "nap_time",
+   "name": "Nap Time",
+   "desc": "Slide off the back 10 times.",
+   "stat": "crash_behind",
+   "goal": 10,
+   "reward": {
+    "slot": "cap",
+    "item": "nightcap"
+   }
+  },
+  {
+   "id": "speed_demon",
+   "name": "Speed Demon",
+   "desc": "Shoot off the front 5 times.",
+   "stat": "crash_ahead",
+   "goal": 5,
+   "reward": {
+    "slot": "paint",
+    "item": "cyan"
+   }
+  },
+  {
+   "id": "weekly",
+   "name": "Weekly Regular",
+   "desc": "Ride in 4 different weeks.",
+   "stat": "weeks_played",
+   "goal": 4,
+   "reward": {
+    "slot": "coat",
+    "item": "purple"
+   }
+  },
+  {
+   "id": "pot_winner",
+   "name": "Pot Winner",
+   "desc": "Win the weekly pot.",
+   "stat": "wins",
+   "goal": 1,
+   "reward": {
+    "slot": "cap",
+    "item": "crown"
+   }
+  },
+  {
+   "id": "night_owl",
+   "name": "Night Owl",
+   "desc": "Start 5 rides between midnight and 4 AM Pacific.",
+   "stat": "night_runs",
+   "goal": 5,
+   "reward": {
+    "slot": "coat",
+    "item": "hivis"
+   }
+  },
+  {
+   "id": "lumberjack",
+   "name": "Lumberjack",
+   "desc": "Ride 25,000 meters in total.",
+   "stat": "total_m",
+   "goal": 25000,
+   "reward": {
+    "slot": "coat",
+    "item": "plaid"
+   }
+  },
+  {
+   "id": "pole_position",
+   "name": "Pole Position",
+   "desc": "Ride 2,000 meters in one run.",
+   "stat": "best_m",
+   "goal": 2000,
+   "reward": {
+    "slot": "coat",
+    "item": "checker"
+   }
+  },
+  {
+   "id": "crossing_guard",
+   "name": "Crossing Guard",
+   "desc": "Ride past 50 gaps.",
+   "stat": "gaps",
+   "goal": 50,
+   "reward": {
+    "slot": "coat",
+    "item": "zebra"
+   }
+  },
+  {
+   "id": "far_out",
+   "name": "Far Out",
+   "desc": "Spend 300 seconds in the dirt.",
+   "stat": "sand_s",
+   "goal": 300,
+   "reward": {
+    "slot": "coat",
+    "item": "tiedye"
+   }
+  },
+  {
+   "id": "saturday_night",
+   "name": "Saturday Night",
+   "desc": "Start 15 rides between midnight and 4 AM Pacific.",
+   "stat": "night_runs",
+   "goal": 15,
+   "reward": {
+    "slot": "coat",
+    "item": "disco"
+   }
+  },
+  {
+   "id": "hot_stuff",
+   "name": "Hot Stuff",
+   "desc": "Spend 300 seconds in a wheelie.",
+   "stat": "wheelie_s",
+   "goal": 300,
+   "reward": {
+    "slot": "coat",
+    "item": "flame"
+   }
+  },
+  {
+   "id": "over_rainbow",
+   "name": "Over the Rainbow",
+   "desc": "Ride in 8 different weeks.",
+   "stat": "weeks_played",
+   "goal": 8,
+   "reward": {
+    "slot": "coat",
+    "item": "rainbow"
+   }
+  },
+  {
+   "id": "chrome_plated",
+   "name": "Chrome Plated",
+   "desc": "Finish 25 rides.",
+   "stat": "runs",
+   "goal": 25,
+   "reward": {
+    "slot": "rims",
+    "item": "spokes"
+   }
+  },
+  {
+   "id": "spinners",
+   "name": "Spinners",
+   "desc": "Ride 100,000 meters in total.",
+   "stat": "total_m",
+   "goal": 100000,
+   "reward": {
+    "slot": "rims",
+    "item": "spinner"
+   }
+  },
+  {
+   "id": "prismatic",
+   "name": "Prismatic",
+   "desc": "Ride through 100 road swerves.",
+   "stat": "swerves",
+   "goal": 100,
+   "reward": {
+    "slot": "rims",
+    "item": "rainbow"
+   }
+  },
+  {
+   "id": "fire_wheels",
+   "name": "Fire Wheels",
+   "desc": "Spend 1,200 seconds in a wheelie.",
+   "stat": "wheelie_s",
+   "goal": 1200,
+   "reward": {
+    "slot": "rims",
+    "item": "flame"
+   }
+  },
+  {
+   "id": "pizza_time",
+   "name": "Pizza Time",
+   "desc": "Sponsor 10 rides with a coin.",
+   "stat": "coins",
+   "goal": 10,
+   "reward": {
+    "slot": "rims",
+    "item": "pizza"
+   }
+  },
+  {
+   "id": "spin_doctor",
+   "name": "Spin Doctor",
+   "desc": "Ride 4,000 meters in one run.",
+   "stat": "best_m",
+   "goal": 4000,
+   "reward": {
+    "slot": "rims",
+    "item": "vinyl"
+   }
+  },
+  {
+   "id": "starlet",
+   "name": "Starlet",
+   "desc": "Sponsor 100 rides with a coin.",
+   "stat": "coins",
+   "goal": 100,
+   "reward": {
+    "slot": "rims",
+    "item": "star"
+   }
+  },
+  {
+   "id": "checkered_past",
+   "name": "Checkered Past",
+   "desc": "Ride past 25 gaps.",
+   "stat": "gaps",
+   "goal": 25,
+   "reward": {
+    "slot": "decal",
+    "item": "checker"
+   }
+  },
+  {
+   "id": "bolt",
+   "name": "Bolt",
+   "desc": "Ride 1,000 meters in one run.",
+   "stat": "best_m",
+   "goal": 1000,
+   "reward": {
+    "slot": "decal",
+    "item": "lightning"
+   }
+  },
+  {
+   "id": "skull_rider",
+   "name": "Skull Rider",
+   "desc": "Hit a wall or barricade 25 times.",
+   "stat": "crash_rail",
+   "goal": 25,
+   "reward": {
+    "slot": "decal",
+    "item": "skull"
+   }
+  },
+  {
+   "id": "seeing_stars",
+   "name": "Seeing Stars",
+   "desc": "Shoot off the front 15 times.",
+   "stat": "crash_ahead",
+   "goal": 15,
+   "reward": {
+    "slot": "decal",
+    "item": "stars"
+   }
+  },
+  {
+   "id": "behind_eight",
+   "name": "Behind the 8 Ball",
+   "desc": "Slide off the back 25 times.",
+   "stat": "crash_behind",
+   "goal": 25,
+   "reward": {
+    "slot": "decal",
+    "item": "eight"
+   }
+  },
+  {
+   "id": "bike_lover",
+   "name": "Bike Lover",
+   "desc": "Finish 100 rides.",
+   "stat": "runs",
+   "goal": 100,
+   "reward": {
+    "slot": "decal",
+    "item": "hearts"
+   }
+  },
+  {
+   "id": "gekitotsu",
+   "name": "Gekitotsu",
+   "desc": "Ride in 12 different weeks.",
+   "stat": "weeks_played",
+   "goal": 12,
+   "reward": {
+    "slot": "decal",
+    "item": "kanji"
+   }
+  },
+  {
+   "id": "happy_hour",
+   "name": "Happy Hour",
+   "desc": "Ride 5,000 meters in total.",
+   "stat": "total_m",
+   "goal": 5000,
+   "reward": {
+    "slot": "gear",
+    "item": "beer"
+   }
+  },
+  {
+   "id": "distinguished",
+   "name": "Distinguished",
+   "desc": "Ride 2,500 meters in one run.",
+   "stat": "best_m",
+   "goal": 2500,
+   "reward": {
+    "slot": "gear",
+    "item": "monocle"
+   }
+  },
+  {
+   "id": "pipe_down",
+   "name": "Pipe Down",
+   "desc": "Sponsor 35 rides with a coin.",
+   "stat": "coins",
+   "goal": 35,
+   "reward": {
+    "slot": "gear",
+    "item": "pipe"
+   }
+  },
+  {
+   "id": "lucky_dice",
+   "name": "Lucky Dice",
+   "desc": "Hit a wall or barricade 5 times.",
+   "stat": "crash_rail",
+   "goal": 5,
+   "reward": {
+    "slot": "gear",
+    "item": "dice"
+   }
+  },
+  {
+   "id": "dirt_pirate",
+   "name": "Dirt Pirate",
+   "desc": "Spend 1,500 seconds in the dirt.",
+   "stat": "sand_s",
+   "goal": 1500,
+   "reward": {
+    "slot": "gear",
+    "item": "pirate"
+   }
+  },
+  {
+   "id": "tail_light",
+   "name": "Tail Light",
+   "desc": "Ride through 60 road swerves.",
+   "stat": "swerves",
+   "goal": 60,
+   "reward": {
+    "slot": "gear",
+    "item": "foxtail"
+   }
+  },
+  {
+   "id": "dust_goggles",
+   "name": "Dust Goggles",
+   "desc": "Spend 120 seconds in the dirt.",
+   "stat": "sand_s",
+   "goal": 120,
+   "reward": {
+    "slot": "gear",
+    "item": "goggles"
+   }
+  },
+  {
+   "id": "dressed_up",
+   "name": "Dressed Up",
+   "desc": "Ride in 6 different weeks.",
+   "stat": "weeks_played",
+   "goal": 6,
+   "reward": {
+    "slot": "gear",
+    "item": "bowtie"
+   }
+  },
+  {
+   "id": "pigeon_pal",
+   "name": "Pigeon Pal",
+   "desc": "Start 10 rides between midnight and 4 AM Pacific.",
+   "stat": "night_runs",
+   "goal": 10,
+   "reward": {
+    "slot": "gear",
+    "item": "pigeon"
+   }
+  },
+  {
+   "id": "coffee_run",
+   "name": "Coffee Run",
+   "desc": "Win the weekly pot 3 times.",
+   "stat": "wins",
+   "goal": 3,
+   "reward": {
+    "slot": "gear",
+    "item": "mug"
+   }
+  },
+  {
+   "id": "milk_run",
+   "name": "Milk Run",
+   "desc": "Ride 2,500 meters in total.",
+   "stat": "total_m",
+   "goal": 2500,
+   "reward": {
+    "slot": "carrier",
+    "item": "crate"
+   }
+  },
+  {
+   "id": "picnic_time",
+   "name": "Picnic Time",
+   "desc": "Sponsor 3 rides with a coin.",
+   "stat": "coins",
+   "goal": 3,
+   "reward": {
+    "slot": "carrier",
+    "item": "wicker"
+   }
+  },
+  {
+   "id": "delivery_guy",
+   "name": "Delivery Guy",
+   "desc": "Finish 75 rides.",
+   "stat": "runs",
+   "goal": 75,
+   "reward": {
+    "slot": "carrier",
+    "item": "pizza"
+   }
+  },
+  {
+   "id": "handyman",
+   "name": "Handyman",
+   "desc": "Ride past 30 barricades.",
+   "stat": "rails",
+   "goal": 30,
+   "reward": {
+    "slot": "carrier",
+    "item": "toolbox"
+   }
+  },
+  {
+   "id": "cold_one",
+   "name": "Cold One",
+   "desc": "Ride 75,000 meters in total.",
+   "stat": "total_m",
+   "goal": 75000,
+   "reward": {
+    "slot": "carrier",
+    "item": "cooler"
+   }
+  },
+  {
+   "id": "rock_star",
+   "name": "Rock Star",
+   "desc": "Ride 3,500 meters in one run.",
+   "stat": "best_m",
+   "goal": 3500,
+   "reward": {
+    "slot": "carrier",
+    "item": "guitar"
+   }
+  },
+  {
+   "id": "gym_rat",
+   "name": "Gym Rat",
+   "desc": "Ride past 200 gaps.",
+   "stat": "gaps",
+   "goal": 200,
+   "reward": {
+    "slot": "carrier",
+    "item": "duffel"
+   }
+  },
+  {
+   "id": "buried_treasure",
+   "name": "Buried Treasure",
+   "desc": "Win the weekly pot 5 times.",
+   "stat": "wins",
+   "goal": 5,
+   "reward": {
+    "slot": "carrier",
+    "item": "chest"
+   }
+  },
+  {
+   "id": "boombox_blast",
+   "name": "Boombox Blast",
+   "desc": "Ride through 150 road swerves.",
+   "stat": "swerves",
+   "goal": 150,
+   "reward": {
+    "slot": "carrier",
+    "item": "boombox"
+   }
+  },
+  {
+   "id": "lunch_break",
+   "name": "Lunch Break",
+   "desc": "Ride in 2 different weeks.",
+   "stat": "weeks_played",
+   "goal": 2,
+   "reward": {
+    "slot": "carrier",
+    "item": "lunch"
+   }
+  },
+  {
+   "id": "corner_pocket",
+   "name": "Corner Pocket",
+   "desc": "Ride 1,500 meters in total.",
+   "stat": "total_m",
+   "goal": 1500,
+   "reward": {
+    "slot": "cane",
+    "item": "eightball"
+   }
+  },
+  {
+   "id": "sweet_tooth",
+   "name": "Sweet Tooth",
+   "desc": "Sponsor 7 rides with a coin.",
+   "stat": "coins",
+   "goal": 7,
+   "reward": {
+    "slot": "cane",
+    "item": "candy"
+   }
+  },
+  {
+   "id": "golden_boy",
+   "name": "Golden Boy",
+   "desc": "Ride 150,000 meters in total.",
+   "stat": "total_m",
+   "goal": 150000,
+   "reward": {
+    "slot": "cane",
+    "item": "golden"
+   }
+  },
+  {
+   "id": "glow_stick",
+   "name": "Glow Stick",
+   "desc": "Start 3 rides between midnight and 4 AM Pacific.",
+   "stat": "night_runs",
+   "goal": 3,
+   "reward": {
+    "slot": "cane",
+    "item": "neon"
+   }
+  },
+  {
+   "id": "rack_em",
+   "name": "Rack 'Em",
+   "desc": "Shoot off the front 10 times.",
+   "stat": "crash_ahead",
+   "goal": 10,
+   "reward": {
+    "slot": "cane",
+    "item": "poolcue"
+   }
+  },
+  {
+   "id": "memento_mori",
+   "name": "Memento Mori",
+   "desc": "Hit a wall or barricade 50 times.",
+   "stat": "crash_rail",
+   "goal": 50,
+   "reward": {
+    "slot": "cane",
+    "item": "skull"
+   }
+  },
+  {
+   "id": "lawn_ornament",
+   "name": "Lawn Ornament",
+   "desc": "Spend 900 seconds in the dirt.",
+   "stat": "sand_s",
+   "goal": 900,
+   "reward": {
+    "slot": "cane",
+    "item": "flamingo"
+   }
+  },
+  {
+   "id": "wizard_of_old",
+   "name": "Wizard of Old",
+   "desc": "Ride 6,500 meters in one run.",
+   "stat": "best_m",
+   "goal": 6500,
+   "reward": {
+    "slot": "cane",
+    "item": "wizard"
+   }
+  },
+  {
+   "id": "gone_fishin",
+   "name": "Gone Fishin'",
+   "desc": "Finish 150 rides.",
+   "stat": "runs",
+   "goal": 150,
+   "reward": {
+    "slot": "cane",
+    "item": "fishing"
+   }
+  },
+  {
+   "id": "sucker",
+   "name": "Sucker",
+   "desc": "Slide off the back 5 times.",
+   "stat": "crash_behind",
+   "goal": 5,
+   "reward": {
+    "slot": "cane",
+    "item": "lollipop"
+   }
+  },
+  {
+   "id": "yeehaw",
+   "name": "Yeehaw",
+   "desc": "Spend 450 seconds in the dirt.",
+   "stat": "sand_s",
+   "goal": 450,
+   "reward": {
+    "slot": "cap",
+    "item": "cowboy"
+   }
+  },
+  {
+   "id": "fancy_pants",
+   "name": "Fancy Pants",
+   "desc": "Ride 40,000 meters in total.",
+   "stat": "total_m",
+   "goal": 40000,
+   "reward": {
+    "slot": "cap",
+    "item": "tophat"
+   }
+  },
+  {
+   "id": "pointy_hat",
+   "name": "Pointy Hat Club",
+   "desc": "Ride 4,500 meters in one run.",
+   "stat": "best_m",
+   "goal": 4500,
+   "reward": {
+    "slot": "cap",
+    "item": "wizard"
+   }
+  },
+  {
+   "id": "order_up",
+   "name": "Order Up",
+   "desc": "Sponsor 25 rides with a coin.",
+   "stat": "coins",
+   "goal": 25,
+   "reward": {
+    "slot": "cap",
+    "item": "chef"
+   }
+  },
+  {
+   "id": "party_starter",
+   "name": "Party Starter",
+   "desc": "Finish 5 rides.",
+   "stat": "runs",
+   "goal": 5,
+   "reward": {
+    "slot": "cap",
+    "item": "party"
+   }
+  },
+  {
+   "id": "valhalla",
+   "name": "Valhalla",
+   "desc": "Shoot off the front 30 times.",
+   "stat": "crash_ahead",
+   "goal": 30,
+   "reward": {
+    "slot": "cap",
+    "item": "viking"
+   }
+  },
+  {
+   "id": "spinning_up",
+   "name": "Spinning Up",
+   "desc": "Spend 150 seconds in a wheelie.",
+   "stat": "wheelie_s",
+   "goal": 150,
+   "reward": {
+    "slot": "cap",
+    "item": "propeller"
+   }
+  },
+  {
+   "id": "cone_zone",
+   "name": "Cone Zone",
+   "desc": "Hit a wall or barricade 15 times.",
+   "stat": "crash_rail",
+   "goal": 15,
+   "reward": {
+    "slot": "cap",
+    "item": "cone"
+   }
+  },
+  {
+   "id": "cat_person",
+   "name": "Cat Person",
+   "desc": "Finish 40 rides.",
+   "stat": "runs",
+   "goal": 40,
+   "reward": {
+    "slot": "cane",
+    "item": "cat"
+   }
+  },
+  {
+   "id": "tee_time",
+   "name": "Tee Time",
+   "desc": "Ride 1,200 meters in one run.",
+   "stat": "best_m",
+   "goal": 1200,
+   "reward": {
+    "slot": "cane",
+    "item": "golf"
+   }
+  },
+  {
+   "id": "fresh_cut",
+   "name": "Fresh Cut",
+   "desc": "Ride in 3 different weeks.",
+   "stat": "weeks_played",
+   "goal": 3,
+   "reward": {
+    "slot": "cane",
+    "item": "bouquet"
+   }
+  },
+  {
+   "id": "daily_rider",
+   "name": "Daily Rider",
+   "desc": "Ride 1 Daily Dash runs.",
+   "stat": "daily_runs",
+   "goal": 1,
+   "reward": {
+    "slot": "decal",
+    "item": "sun"
+   }
+  },
+  {
+   "id": "paper_route",
+   "name": "Paper Route",
+   "desc": "Ride 10 Daily Dash runs.",
+   "stat": "daily_runs",
+   "goal": 10,
+   "reward": {
+    "slot": "carrier",
+    "item": "paperbag"
+   }
+  },
+  {
+   "id": "noon_hustler",
+   "name": "Noon Hustler",
+   "desc": "Ride 30 Daily Dash runs.",
+   "stat": "daily_runs",
+   "goal": 30,
+   "reward": {
+    "slot": "gear",
+    "item": "watch"
+   }
+  },
+  {
+   "id": "daily_grind",
+   "name": "Daily Grind",
+   "desc": "Ride 100 Daily Dash runs.",
+   "stat": "daily_runs",
+   "goal": 100,
+   "reward": {
+    "slot": "rims",
+    "item": "sunwheel"
+   }
+  },
+  {
+   "id": "early_bird",
+   "name": "Early Bird",
+   "desc": "Play the Daily Dash on 5 different days.",
+   "stat": "daily_days",
+   "goal": 5,
+   "reward": {
+    "slot": "paint",
+    "item": "sunrise"
+   }
+  },
+  {
+   "id": "clockwork",
+   "name": "Clockwork",
+   "desc": "Play the Daily Dash on 14 different days.",
+   "stat": "daily_days",
+   "goal": 14,
+   "reward": {
+    "slot": "paint",
+    "item": "goldenhour"
+   }
+  },
+  {
+   "id": "daily_champ",
+   "name": "Daily Champ",
+   "desc": "Win the Daily Dash 1 times.",
+   "stat": "daily_wins",
+   "goal": 1,
+   "reward": {
+    "slot": "cap",
+    "item": "laurel"
+   }
+  },
+  {
+   "id": "three_peat",
+   "name": "Three-Peat",
+   "desc": "Win the Daily Dash 3 times.",
+   "stat": "daily_wins",
+   "goal": 3,
+   "reward": {
+    "slot": "coat",
+    "item": "varsity"
+   }
+  },
+  {
+   "id": "dynasty",
+   "name": "Dynasty",
+   "desc": "Win the Daily Dash 10 times.",
+   "stat": "daily_wins",
+   "goal": 10,
+   "reward": {
+    "slot": "cane",
+    "item": "trophy"
+   }
+  },
+  {
+   "id": "blazing_noon",
+   "name": "Blazing Noon",
+   "desc": "Score 3,000 in one Daily Dash run.",
+   "stat": "daily_best",
+   "goal": 3000,
+   "reward": {
+    "slot": "coat",
+    "item": "sunset"
+   }
+  },
+  {
+   "id": "cashing_in",
+   "name": "Cashing In",
+   "desc": "Win 25 coins from weekly pots.",
+   "stat": "coins_won",
+   "goal": 25,
+   "reward": {
+    "slot": "paint",
+    "item": "money"
+   }
+  },
+  {
+   "id": "big_payday",
+   "name": "Big Payday",
+   "desc": "Win 100 coins from weekly pots.",
+   "stat": "coins_won",
+   "goal": 100,
+   "reward": {
+    "slot": "trail",
+    "item": "coins"
+   }
+  },
+  {
+   "id": "old_money",
+   "name": "Old Money",
+   "desc": "Win 1,000 coins from weekly pots.",
+   "stat": "coins_won",
+   "goal": 1000,
+   "reward": {
+    "slot": "gear",
+    "item": "chain"
+   }
+  },
+  {
+   "id": "lunch_money",
+   "name": "Lunch Money",
+   "desc": "Win 30 coins from Daily Dash prizes.",
+   "stat": "daily_coins_won",
+   "goal": 30,
+   "reward": {
+    "slot": "carrier",
+    "item": "piggy"
+   }
+  },
+  {
+   "id": "podium",
+   "name": "Podium",
+   "desc": "Finish a week in the top 3.",
+   "stat": "podiums",
+   "goal": 1,
+   "reward": {
+    "slot": "gear",
+    "item": "medal"
+   }
+  },
+  {
+   "id": "every_day",
+   "name": "Every Day, Sonny",
+   "desc": "Play the Daily Dash 7 days in a row.",
+   "stat": "daily_streak",
+   "goal": 7,
+   "reward": {
+    "slot": "paint",
+    "item": "holo"
+   }
+  },
+  {
+   "id": "born_52",
+   "name": "Born in '52",
+   "desc": "End a run on a score ending in 52.",
+   "stat": "ends_52",
+   "goal": 1,
+   "reward": {
+    "slot": "coat",
+    "item": "greaser"
+   }
+  },
+  {
+   "id": "clean_sweep",
+   "name": "Clean Sweep",
+   "desc": "Ride 1,500 meters in one run before touching the dirt.",
+   "stat": "clean_m",
+   "goal": 1500,
+   "reward": {
+    "slot": "paint",
+    "item": "chrome"
+   }
+  },
+  {
+   "id": "gap_hopper",
+   "name": "Gap Hopper",
+   "desc": "Ride past 4 gaps in one run.",
+   "stat": "run_gaps",
+   "goal": 4,
+   "reward": {
+    "slot": "trail",
+    "item": "bubbles"
+   }
+  },
+  {
+   "id": "barricade_dancer",
+   "name": "Barricade Dancer",
+   "desc": "Ride past 3 barricades in one run.",
+   "stat": "run_rails",
+   "goal": 3,
+   "reward": {
+    "slot": "decal",
+    "item": "roundel"
+   }
+  },
+  {
+   "id": "wheelie_run",
+   "name": "Show-Off",
+   "desc": "Spend 8 seconds in a wheelie in one run.",
+   "stat": "run_wheelie",
+   "goal": 8,
+   "reward": {
+    "slot": "trail",
+    "item": "smoke"
+   }
+  },
+  {
+   "id": "trick_or_treat",
+   "name": "Trick or Treat",
+   "desc": "Finish a ride on a Halloween map (Oct 11 to 31).",
+   "stat": "halloween_runs",
+   "goal": 1,
+   "reward": {
+    "slot": "cap",
+    "item": "pumpkin"
+   },
+   "season": "halloween"
+  },
+  {
+   "id": "monster_mash",
+   "name": "Monster Mash",
+   "desc": "Finish 5 rides on Halloween maps (Oct 11 to 31). Unlocks the whole haunted set.",
+   "stat": "halloween_runs",
+   "goal": 5,
+   "reward": {
+    "slot": "rims",
+    "item": "web"
+   },
+   "also": [
+    {
+     "slot": "decal",
+     "item": "batmoon"
+    },
+    {
+     "slot": "gear",
+     "item": "spider"
+    },
+    {
+     "slot": "carrier",
+     "item": "cauldron"
+    },
+    {
+     "slot": "cane",
+     "item": "broom"
+    }
+   ],
+   "season": "halloween"
+  },
+  {
+   "id": "graveyard_shift",
+   "name": "Graveyard Shift",
+   "desc": "Finish 15 rides on Halloween maps (Oct 11 to 31).",
+   "stat": "halloween_runs",
+   "goal": 15,
+   "reward": {
+    "slot": "trail",
+    "item": "bats"
+   },
+   "season": "halloween"
+  },
+  {
+   "id": "scream_team",
+   "name": "Scream Team",
+   "desc": "Finish in the top 3 of a Halloween week or Halloween Daily Dash.",
+   "stat": "halloween_podiums",
+   "goal": 1,
+   "reward": {
+    "slot": "coat",
+    "item": "skeleton"
+   },
+   "season": "halloween"
+  },
+  {
+   "id": "sleigh_ride",
+   "name": "Sleigh Ride",
+   "desc": "Finish a ride on a Christmas map (Dec 1 to 26).",
+   "stat": "christmas_runs",
+   "goal": 1,
+   "reward": {
+    "slot": "cap",
+    "item": "santa"
+   },
+   "season": "christmas"
+  },
+  {
+   "id": "let_it_snow",
+   "name": "Let It Snow",
+   "desc": "Finish 15 rides on Christmas maps (Dec 1 to 26).",
+   "stat": "christmas_runs",
+   "goal": 15,
+   "reward": {
+    "slot": "trail",
+    "item": "snow"
+   },
+   "season": "christmas"
+  },
+  {
+   "id": "naughty_list",
+   "name": "Naughty List",
+   "desc": "Finish in the top 3 of a Christmas week or Christmas Daily Dash.",
+   "stat": "christmas_podiums",
+   "goal": 1,
+   "reward": {
+    "slot": "coat",
+    "item": "xmas"
+   },
+   "season": "christmas"
+  }
+ ],
+ "seasons": [
+  {
+   "id": "halloween",
+   "name": "Halloween",
+   "from": "10-11",
+   "to": "10-31"
+  },
+  {
+   "id": "christmas",
+   "name": "Christmas",
+   "from": "12-01",
+   "to": "12-26"
+  }
+ ]
+}

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "perf.h"
+#include "look.h"
 #include "sim.h"
 #include "audio.h"
 
@@ -74,6 +75,8 @@ void perf_ride_end(int score) {
   int mp = (5 * doy + 2) / 153, dd = doy - (153 * mp + 2) / 5 + 1, mo = mp < 10 ? mp + 3 : mp - 9, yy = yoe + era * 400 + (mo <= 2);
   char snd[24]; if (audio_core() >= 0) snprintf(snd, sizeof snd, "sound on core %d", audio_core()); else snprintf(snd, sizeof snd, "sound in main loop");
   fprintf(f, "== %04d-%02d-%02d %02d:%02d  %s  seed %d  %s  %s  score %d\n", yy, mo, dd, hh, mm, track, seed, isNew3ds ? "New 3DS" : "3DS", snd, score);
+  fprintf(f, "look:"); int nl = 0; for (int s = 0; s < NSLOT; s++) if (*look_get(s)) { fprintf(f, " %s", look_get(s)); nl++; }
+  fprintf(f, "%s\n", nl ? "" : " original");
   fprintf(f, "frames %d  slow %d (%.1f%%)  dropped %d  avg %.1f ms  worst %.1f ms  sound gaps %d\n", frames, slow, 100.0 * slow / frames, dropped,
     sumTotal / frames, maxTotal, audio_gaps() - gapsAtStart);
   fprintf(f, "avg/max ms:");
