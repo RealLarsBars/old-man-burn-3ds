@@ -12,7 +12,6 @@ double RC = 189, RW = 46;
 int SEASON = 0;
 int ORDER[3] = { 0, 1, 2 }, skyPerm[4] = { 0, 1, 2, 3 }, LAND = 0;
 int st = ST_TITLE;
-bool paused = false;
 Run g;
 double T = 0;
 
@@ -373,6 +372,10 @@ static void crash(int cause) {
   fxBurst(90, 420);
   on_crash();
 }
+void end_run_now(int cause) {                                     // the player left mid-ride: crash and go straight to the score
+  if (st != ST_PLAY) return;
+  crash(cause); st = ST_OVER; on_over();
+}
 static double dirtAcc = 0;
 static void dirtCloud(double dt) {
   uint32_t cols[4]; dirt_colors(cols);
@@ -412,7 +415,6 @@ void update(double dt, const Input *in) {
     bool want = sin(T * 0.9) > 0.35; g.thr += ((want ? 1 : 0) - g.thr) * fmin(1, dt * 6);
     g.wheelie += ((want ? 1 : 0) - g.wheelie) * fmin(1, dt * 6);
   } else if (st == ST_PLAY) {
-    if (paused) return;
     double m = g.cam / M_PX, P = pace(m); g.P = P;
     g.cam += P * dt;
     bool want = in->thr;

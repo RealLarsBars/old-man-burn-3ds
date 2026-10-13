@@ -244,7 +244,7 @@ int audio_tick(void) {
     if (thread) LightLock_Unlock(&lock);
   }
   engFreqT = 46 + (float)g.v * 0.18f + (float)g.thr * 22;
-  engGainT = st == ST_PLAY && !paused ? 0.05f + 0.05f * (float)g.thr : 0;
+  engGainT = st == ST_PLAY ? 0.05f + 0.05f * (float)g.thr : 0;
   dlyTime = fminf(0.95f, 60 / bpm() / 4 * 3);
   return ok && !thread ? pump() : 0;
 }

@@ -92,7 +92,7 @@ static void enterMode(int m) {
   reseed(curSeed, m == MODE_DAILY || curSeed >= V2_FROM);
   look_apply();
   nameOf(SEED, SEASON, trackName, sizeof trackName);
-  st = ST_TITLE; paused = false;
+  st = ST_TITLE;
 }
 static void shortDay(int day, char *out, int n) {
   static const char *MO[12] = { "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec" };
@@ -118,9 +118,17 @@ void on_over(void) {
   causeTxt = CAUSES[g.cause][(int)(frand() * 3)];
   rec.score = g.dist; sync_run();
 }
+// Runs can't be paused. The HOME menu or closing the lid would freeze the game until you came back,
+// so leaving mid-ride ends the run on the spot (and saves the score before the console suspends).
+static void leftMidRide(APT_HookType hook, void *param) {
+  (void)param;
+  if ((hook != APTHOOK_ONSUSPEND && hook != APTHOOK_ONSLEEP) || st != ST_PLAY) return;
+  end_run_now(CAUSE_BEHIND);
+  causeTxt = "You left mid-ride, so the old man slid off. Runs can't be paused.";
+}
 static void startRun(void) {
   if (st == ST_OVER) { reseed(curSeed, mode == MODE_DAILY || curSeed >= V2_FROM); }
-  newRun(); st = ST_PLAY; paused = false;
+  newRun(); st = ST_PLAY;
   perf_ride_start(trackName, curSeed); ach_run_start();
   rec_start(curSeed, mode == MODE_DAILY ? RM_DAILY : mode == MODE_OLD ? RM_OLD : RM_WEEK);
 #ifdef DEVTEST                                                     // test builds: start far down the road, ride through everything
@@ -238,7 +246,6 @@ static void bottomPlay(int touchY) {                              // touchY: whe
   ui_panel();
   char b[24]; fmtNum(st == ST_PLAY ? scoreOf() : g.dist, b);
   ui_text(trackName, 12, 18, 9, UI_BONE, AL_LEFT);
-  ui_text("START pause", 308, 18, 8, UI_DIM, AL_RIGHT);
   cv_font(FONT_DISP); cv_text(b, 161, 52, 26, H(a87400), AL_CENTER, BL_ALPHA); cv_text(b, 160, 51, 26, UI_GOLD, AL_CENTER, BL_ALPHA);
   bool held = touchY >= 0;
   cv_fill(held ? rgba(255, 210, 31, .12) : rgba(255, 255, 255, .05)); cv_rect(8, 62, 304, 170);
@@ -540,10 +547,11 @@ int main(void) {
   audio_init(); audio_set(optMusic, optSfx);
   perf_init(); int audioBufs = 0;
   clockMaps(); enterMode(MODE_WEEK);
+  aptHookCookie awayHook; aptHook(&awayHook, leftMidRide, NULL);
   touchPosition lastTouch = { 0 }; bool touching = false;
   const double dt = 1.0 / 60;
   while (aptMainLoop()) {
-    perf_frame((st == ST_PLAY || st == ST_CRASH) && !paused, audioBufs);
+    perf_frame(st == ST_PLAY || st == ST_CRASH, audioBufs);
     hidScanInput();
     u32 kd = hidKeysDown(), kh = hidKeysHeld();
     touchPosition tp; hidTouchRead(&tp);
@@ -592,10 +600,7 @@ int main(void) {
       if (kd & KEY_SELECT) openSettings();
       if (kd & KEY_R) ridePicked(MODE_DAILY);
     } else if (st == ST_PLAY) {
-      if (kd & KEY_START) paused = !paused;
-      if (paused && (kd & KEY_SELECT)) { perf_ride_end(scoreOf()); enterMode(mode); screen = UI_TITLE; ui_reset_focus(); }
-      else if (!paused) {
-        if (kd & KEY_SELECT) { paused = true; }
+      {                                                            // no pause button: runs can't be paused
         in.thr = (kh & binds[BIND_GO]) != 0;
         double steer = ((kh & binds[BIND_UP]) ? -1 : 0) + ((kh & binds[BIND_DOWN]) ? 1 : 0);
         circlePosition cp; hidCircleRead(&cp);
@@ -618,7 +623,7 @@ int main(void) {
     }
     sync_tick(menus || st == ST_OVER);
     { int w, d; if (st == ST_TITLE && sync_clock(&w, &d) && (w != liveWeek || d != liveDay)) { clockMaps(); enterMode(mode == MODE_OLD ? MODE_WEEK : mode); } }
-    bool riding = st == ST_PLAY && !paused;
+    bool riding = st == ST_PLAY;
     update(dt, &in);
     if (riding && st == ST_PLAY) { ach_run_tick(dt); look_trail(dt); rec_tick(); }
     perf_mark(PF_SIM);
