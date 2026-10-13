@@ -34,3 +34,5 @@ void ach_run_tick(double dt);              // while riding: wheelies, dirt, gaps
 // the run is over: counts it, saves, and returns how many achievements it unlocked (their indexes in ach_new)
 int ach_run_end(int dist, int cause, int seed, bool daily, bool oldMap, bool newBest, int season, const Best *b, int nb);
 extern int ach_new[NACH];
+extern bool ach_server[NACH];                // unlocked on the linked Discord profile (sync.c)
+struct json_t; void ach_extras(struct json_t *o);   // the last run's counts, as the server's run extras

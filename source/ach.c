@@ -1,9 +1,11 @@
 #include "ach.h"
 #include "sim.h"
+#include "sync.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <jansson.h>
 
 #define PROFILE "sdmc:/3ds/oldmanburn/profile.txt"
 double stats[NSTAT];
@@ -11,7 +13,7 @@ static double cosM[NITEMS];
 int ach_new[NACH];
 static bool doneBefore[NACH];
 
-bool ach_done(int a) { return stats[ACHS[a].stat] >= ACHS[a].goal; }
+bool ach_done(int a) { return stats[ACHS[a].stat] >= ACHS[a].goal || ach_server[a]; }
 int ach_count(void) { int n = 0; for (int a = 0; a < NACH; a++) n += ach_done(a); return n; }
 int item_index(int slot, const char *id) { for (int i = 0; i < NITEMS; i++) if (ITEMS[i].slot == slot && !strcmp(ITEMS[i].id, id)) return i; return -1; }
 const char *item_name(int slot, const char *id) { int i = item_index(slot, id); return i < 0 ? "Original" : ITEMS[i].name; }
@@ -32,7 +34,7 @@ void ach_wear(int slot, int dir) {                               // cycle throug
     if (i == -1) { look_set(slot, ""); break; }
     if (ITEMS[i].slot == slot && look_known(slot, ITEMS[i].id) && item_owned(slot, ITEMS[i].id)) { look_set(slot, ITEMS[i].id); break; }
   }
-  ach_save();
+  ach_save(); sync_loadout_changed();
 }
 double cos_meters(int slot) { int i = item_index(slot, look_get(slot)); return i < 0 ? 0 : cosM[i]; }
 
@@ -74,7 +76,7 @@ void ach_bests(const Best *bs, int n) {
 }
 
 /* ---------- counting a run, as trackRun() and localFinish() do on the web ---------- */
-static struct { double wheelie, sand, clean; int gaps, rails, swerves, gi, ri, si; } ex;
+static struct { double wheelie, sand, clean; int gaps, rails, swerves, gi, ri, si, cause, dist; } ex;
 void ach_run_start(void) {
   memset(&ex, 0, sizeof ex); ex.clean = -1;
   for (int a = 0; a < NACH; a++) doneBefore[a] = ach_done(a);
@@ -89,6 +91,7 @@ void ach_run_tick(double dt) {
 }
 static void maxTo(int s, double v) { if (v > stats[s]) stats[s] = v; }
 int ach_run_end(int d, int cause, int seed, bool daily, bool oldMap, bool newBest, int season, const Best *b, int nb) {
+  ex.cause = cause; ex.dist = d;
   if (d > 0) for (int s = 0; s < NSLOT; s++) { int i = item_index(s, look_get(s)); if (i >= 0) cosM[i] += d; }
   stats[ST_TOTAL_M] += d; maxTo(ST_BEST_M, d); stats[ST_RUNS]++;
   if (d >= 500) stats[ST_RIDES_500]++;
@@ -105,4 +108,12 @@ int ach_run_end(int d, int cause, int seed, bool daily, bool oldMap, bool newBes
   ach_save();
   int n = 0; for (int a = 0; a < NACH; a++) if (ach_done(a) && !doneBefore[a]) { ach_new[n++] = a; doneBefore[a] = true; }
   return n;
+}
+void ach_extras(json_t *o) {
+  static const char *C[4] = { "", "behind", "ahead", "rail" };
+  json_object_set_new(o, "wheelie_s", json_integer((int)ex.wheelie)); json_object_set_new(o, "sand_s", json_integer((int)ex.sand));
+  json_object_set_new(o, "gaps", json_integer(ex.gaps)); json_object_set_new(o, "rails", json_integer(ex.rails)); json_object_set_new(o, "swerves", json_integer(ex.swerves));
+  json_object_set_new(o, "run_gaps", json_integer(ex.gaps)); json_object_set_new(o, "run_rails", json_integer(ex.rails)); json_object_set_new(o, "run_wheelie", json_integer((int)ex.wheelie));
+  json_object_set_new(o, "clean_m", json_integer(ex.clean < 0 ? ex.dist : (int)ex.clean));
+  if (ex.cause > 0 && ex.cause < 4) json_object_set_new(o, "cause", json_string(C[ex.cause]));
 }

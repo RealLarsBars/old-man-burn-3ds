@@ -13,6 +13,8 @@
 #include "perf.h"
 #include "ui.h"
 #include "ach.h"
+#include "sync.h"
+#include "replay.h"
 #include <citro3d.h>
 
 #define H(x) RGB(0x##x)
@@ -21,11 +23,12 @@ static int mode = MODE_WEEK, liveWeek, liveDay, oldWeek, curSeed;
 static char trackName[64];
 static bool optMusic = true, optSfx = true; static int tzOff = 0;   // hours the console clock is ahead of Pacific time
 static int dpadPct = 100, touchPct = 100;                       // steering sensitivity, percent (Settings sliders)
-enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE };
+enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE, UI_CODE };
 static int screen = UI_TITLE, backTo = UI_TITLE;                // which menu the bottom screen shows (rides use st)
 static int capturing = -1;                                       // the control (BIND_*) waiting for a button press
 static int archSel, archTop;                                     // the old-maps list: highlighted week and scroll
 static int garTab, garSel, garTop;                               // the garage: LOOK or ACHIEVEMENTS, highlighted row, scroll
+static bool unlinkAsk;                                           // A once more on the Discord row unlinks
 static bool garageNew;                                           // unlocked something since the garage was last opened
 static int nUnlocked, unlocked[4];                               // what the last run unlocked, for the game over screen
 
@@ -79,6 +82,7 @@ static void clockMaps(void) {
   long long secs = ms / 1000; int day = (int)(secs / 86400), hour = (int)(secs % 86400 / 3600);
   liveWeek = day - ((day + 4) % 7);                              // 1970-01-01 was a Thursday
   liveDay = hour >= 12 ? day : day - 1;
+  sync_clock(&liveWeek, &liveDay);                               // linked: the server's maps, whatever the console's clock says
   if (oldWeek <= 0 || oldWeek >= liveWeek) oldWeek = liveWeek - 7;
   if (oldWeek < FIRST_WEEK) oldWeek = FIRST_WEEK;
 }
@@ -103,7 +107,7 @@ static const char *CAUSES[4][3] = { { "", "", "" },
   { "Slid off the back. Back in '73 we kept up with the Torino. Stay on the road and mind the throttle.", "Too slow. I once waited so long at the DMV they changed the carpet. Keep on the throttle.", "You nodded off, didn't you. Naps are for the fountain, not the highway." },
   { "Shot off the front. Slow down, you'll spill your thermos.", "Too fast. In 1964 we had a speed limit and a sense of shame.", "Went right past the screen. Wasn't that the Woolworth's?" },
   { "Hit the guardrail. They never had those on Route 9 in '66.", "Guardrail. Solid steel. Like my hip.", "You hit the barricade. Marge would have swerved." } };
-void on_crash(void) { audio_crash(); }
+void on_crash(void) { audio_crash(); rec_end(g.dist, g.cause); }
 void on_over(void) {
   overAt = T; lastScore = g.dist; prevBest = bestOf(curSeed);
   newBest = setBest(curSeed, g.dist);
@@ -112,11 +116,13 @@ void on_over(void) {
   nUnlocked = n; for (int i = 0; i < n && i < 4; i++) unlocked[i] = ach_new[i];
   if (n) garageNew = true;
   causeTxt = CAUSES[g.cause][(int)(frand() * 3)];
+  rec.score = g.dist; sync_run();
 }
 static void startRun(void) {
   if (st == ST_OVER) { reseed(curSeed, mode == MODE_DAILY || curSeed >= V2_FROM); }
   newRun(); st = ST_PLAY; paused = false;
   perf_ride_start(trackName, curSeed); ach_run_start();
+  rec_start(curSeed, mode == MODE_DAILY ? RM_DAILY : mode == MODE_OLD ? RM_OLD : RM_WEEK);
 #ifdef DEVTEST                                                     // test builds: start far down the road, ride through everything
   simGod = true; g.cam = DEVTEST * M_PX; roadAt(g.cam + g.bx); g.y = RC; g.v = g.P = pace(DEVTEST);
 #endif
@@ -134,12 +140,13 @@ static int nOldWeeks(void) { return liveWeek - 7 >= FIRST_WEEK ? (liveWeek - 7 -
 static int archWeek(int i) { return liveWeek - 7 - i * 7; }      // the old-maps list, newest first
 static const char *modeLabel(void) { return mode == MODE_DAILY ? "Today's Daily Dash" : mode == MODE_OLD ? "Old map" : "This week's track"; }
 
-static void topGarage(void);
+static void topGarage(void), topCode(void);
 static void topHud(void) {
 #ifdef SHOWCASE
   if (st == ST_TITLE) return;
 #endif
   char b[128], u[128];
+  if (screen == UI_CODE) { topCode(); return; }
   if (st == ST_TITLE && screen == UI_GARAGE) { topGarage(); return; }
   if (st == ST_TITLE) {                                          // the title column of the web game, over the road
     cv_fill(rgba(10, 6, 18, .72)); cv_rect(0, 0, 230, 240);
@@ -223,7 +230,7 @@ static void bottomPlay(int touchY) {                              // touchY: whe
     ui_text("Drag up and down to steer", 160, 150, 9, UI_SUB, AL_CENTER);
   }
 }
-enum { O_AGAIN, O_MENU };
+enum { O_AGAIN, O_MENU, O_CODE };
 static void bottomOver(void) {
   ui_panel();
   char b[24], line[96]; fmtNum(lastScore, b);
@@ -244,8 +251,10 @@ static void bottomOver(void) {
   if (T - overAt > 0.6) {
     ui_button((Box){ 14, 142, 186, 38 }, "ONE MORE LAP", BTN_RED, 13);
     ui_button((Box){ 212, 142, 94, 38 }, "MENU", BTN_ALT, 12);
+    ui_button((Box){ 212, 188, 94, 18 }, "Replay code", BTN_MINI, 8);
+    if (sync_linked()) ui_text(sync_status(), 14, 196, 8, UI_CYAN, AL_LEFT);
     snprintf(line, sizeof line, "A or %s ride again · B menu", keyName(binds[BIND_GO]));
-    ui_text(line, 14, 204, 8, UI_DIM, AL_LEFT);
+    ui_text(line, 14, 228, 8, UI_DIM, AL_LEFT);
   }
 }
 
@@ -350,11 +359,56 @@ static void topGarage(void) {                                      // the bike u
 }
 static void openGarage(void) { backTo = UI_TITLE; screen = UI_GARAGE; garageNew = false; ui_reset_focus(); }
 
+
+/* ---------- the replay code: the last run as a long code and a QR code, for Discord's IMPORT when there's no Wi-Fi ---------- */
+#include "qrcodegen.h"
+static char *codeTxt; static uint8_t *qr; static char codeFile[96];
+static void openCode(void) {
+  free(codeTxt); codeTxt = rec_code(); codeFile[0] = 0;
+  if (!qr) qr = malloc(qrcodegen_BUFFER_LEN_MAX);
+  static uint8_t tmp[qrcodegen_BUFFER_LEN_MAX];
+  if (codeTxt && qr && !qrcodegen_encodeText(codeTxt, tmp, qr, qrcodegen_Ecc_LOW, 1, 40, qrcodegen_Mask_AUTO, true)) qr[0] = 0;
+  if (codeTxt) {                                                   // and a copy on the SD card, to copy off by hand
+    mkdir("sdmc:/3ds/oldmanburn/codes", 0777);
+    snprintf(codeFile, sizeof codeFile, "sdmc:/3ds/oldmanburn/codes/%d-%d.txt", rec.seed, rec.score);
+    FILE *f = fopen(codeFile, "w"); if (f) { fputs(codeTxt, f); fputc('\n', f); fclose(f); } else codeFile[0] = 0;
+  }
+  backTo = screen; screen = UI_CODE; ui_reset_focus();
+}
+static void bottomCode(void) {
+  cv_fill(H(150c26)); cv_rect(0, 0, 320, 240);
+  int n = codeTxt && qr && qr[0] ? qrcodegen_getSize(qr) : 0;
+  if (!n) { ui_wrap("That run is too long for a code. It still uploads when you're linked to Discord.", 14, 40, 9, UI_SUB, 290); }
+  else {
+    int m = 236 / (n + 4); if (m < 1) m = 1;                       // whole pixels per module, with a quiet zone of two
+    int w = (n + 4) * m, x0 = (320 - w) / 2, y0 = (240 - w) / 2;
+    cv_fill(0xffffffffu); cv_rect(x0, y0, w, w);
+    cv_fill(0x000000ffu);
+    for (int y = 0; y < n; y++) for (int x = 0; x < n; ) {          // dark runs along each row, one rect each
+      if (!qrcodegen_getModule(qr, x, y)) { x++; continue; }
+      int x1 = x; while (x1 < n && qrcodegen_getModule(qr, x1, y)) x1++;
+      cv_rect(x0 + (x + 2) * m, y0 + (y + 2) * m, (x1 - x) * m, m); x = x1;
+    }
+  }
+  ui_button((Box){ 4, 4, 50, 18 }, "Back", BTN_MINI, 8);
+}
+static void topCode(void) {
+  cv_fill(rgba(10, 6, 18, .85)); cv_rect(0, 0, LW, LH);
+  char line[160];
+  ui_kicker("REPLAY CODE", 16, 26, UI_CYAN);
+  ui_heading("SEND IT TO DISCORD", 16, 60, 24, AL_LEFT);
+  ui_wrap("Scan the code on the bottom screen with your phone's camera and copy the text. In Discord, open 3DS RIDES, "
+          "press IMPORT and paste it in. The replay shows up with your other rides.", 16, 74, 10, UI_BONE, 380);
+  if (codeTxt) { snprintf(line, sizeof line, "%d characters. Also saved as %s", (int)strlen(codeTxt), codeFile[0] ? codeFile + 5 : "(couldn't save)"); ui_wrap(line, 16, 160, 9, UI_SUB, 380); }
+  if (sync_linked()) ui_wrap("Linked to Discord: rides upload by themselves, so you only need this without Wi-Fi.", 16, 200, 9, UI_CYAN, 380);
+  ui_text("B back", 16, 258, 9, UI_DIM, AL_LEFT);
+}
+
 /* ---------- settings: a panel like the web's, with sliders for steering ---------- */
-enum { S_MUSIC, S_SFX, S_DPAD, S_TOUCH, S_CLOCK, S_GO, S_UP, S_DOWN, S_RESET, S_CLOSE, NS };
+enum { S_MUSIC, S_SFX, S_DPAD, S_TOUCH, S_CLOCK, S_GO, S_UP, S_DOWN, S_RESET, S_DISCORD, S_CLOSE, NS };
 static int setHot[NS];
 static const Box SL_DPAD = { 168, 0, 104, 14 }, SL_TOUCH = { 168, 0, 104, 14 };
-static double rowY(int i) { return 28 + i * 18 + (i >= S_CLOCK ? 4 : 0) + (i >= S_GO ? 4 : 0); }
+static double rowY(int i) { return 26 + i * 16.5 + (i >= S_CLOCK ? 3 : 0) + (i >= S_GO ? 3 : 0) + (i >= S_DISCORD ? 3 : 0); }
 static void bottomSettings(void) {
   cv_fill(rgba(10, 6, 18, .97)); cv_rect(0, 0, 320, 240);
   cv_stroke_rect(4.5, 4.5, 311, 231, UI_PINK, 1);
@@ -386,13 +440,20 @@ static void bottomSettings(void) {
         ui_text(capturing == i - S_GO ? "press a button..." : keyName(binds[i - S_GO]), 306, ty, 9, capturing == i - S_GO ? UI_PINK : UI_CYAN, AL_RIGHT);
         break; }
       case S_RESET: ui_text("Reset controls", 16, ty, 9, col, AL_LEFT); ui_text("L · D-pad", 306, ty, 9, UI_DIM, AL_RIGHT); break;
+      case S_DISCORD:
+        ui_text("Discord", 16, ty, 9, col, AL_LEFT);
+        if (sync_linked()) { snprintf(v, sizeof v, "Linked: %.20s", sync_name()); ui_text(v, 306, ty, 9, UI_CYAN, AL_RIGHT); }
+        else ui_text("Link to Discord", 306, ty, 9, UI_PINK, AL_RIGHT);
+        break;
     }
   }
   setHot[S_CLOSE] = ui_button((Box){ 14, 210, 58, 20 }, "Close", BTN_MINI, 8);
   int fi = -1; for (int i = 0; i < NS; i++) if (ui_is_focus(setHot[i])) fi = i;
+  if (fi != S_DISCORD) unlinkAsk = false;
   const char *help = fi == S_DPAD ? "How fast the bike moves while you hold up or down."
     : fi == S_TOUCH ? "How far the bike moves for each bit you drag."
-    : fi == S_CLOCK ? "Hours your clock is ahead of Pacific, so maps change when Discord's do."
+    : fi == S_CLOCK ? (sync_linked() ? "Linked to Discord: the maps follow the server's clock." : "Hours your clock is ahead of Pacific, so maps change when Discord's do.")
+    : fi == S_DISCORD ? (sync_linked() ? (unlinkAsk ? "Press A again to unlink this 3DS from Discord." : sync_status()) : "In Discord: Settings, LINK A 3DS. Then A here and type its code.")
     : fi >= S_GO && fi <= S_DOWN ? (capturing >= 0 ? "Press the button to use. START cancels." : "A, then press a button. Dragging and the Circle Pad always steer.")
     : "Left / right or drag to change · B closes";
   ui_wrap(help, 80, 210, 8, UI_SUB, 228);
@@ -417,6 +478,7 @@ int main(void) {
   srand((unsigned)osGetTime());
   load();
   ach_load(); ach_bests(bests, nbests);
+  sync_init();
   draw_init();
   gfx_build(draw_sprites);
   audio_init(); audio_set(optMusic, optSfx);
@@ -431,8 +493,11 @@ int main(void) {
     touchPosition tp; hidTouchRead(&tp);
     Input in = { 0 }; int touchY = -1;
     if (!(kh & KEY_TOUCH)) touching = false;
-    bool menus = st == ST_TITLE || screen == UI_SETTINGS;
-    if (screen == UI_SETTINGS && capturing >= 0) {               // waiting for the button to put a control on
+    bool menus = st == ST_TITLE || screen == UI_SETTINGS || screen == UI_CODE;
+    if (screen == UI_CODE) {
+      if (kd & (KEY_B | KEY_START)) { screen = backTo; ui_reset_focus(); }
+      kd &= ~(KEY_A | KEY_B | KEY_START | KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT);
+    } else if (screen == UI_SETTINGS && capturing >= 0) {               // waiting for the button to put a control on
       if (kd & (KEY_START | KEY_SELECT)) capturing = -1;
       else for (int i = 0; i < NKEYS; i++) if (kd & KEYS[i].key) { binds[capturing] = KEYS[i].key; capturing = -1; save(); break; }
       kd = 0;
@@ -494,9 +559,11 @@ int main(void) {
         menus = true;
       }
     }
+    sync_tick(menus || st == ST_OVER);
+    { int w, d; if (st == ST_TITLE && sync_clock(&w, &d) && (w != liveWeek || d != liveDay)) { clockMaps(); enterMode(mode == MODE_OLD ? MODE_WEEK : mode); } }
     bool riding = st == ST_PLAY && !paused;
     update(dt, &in);
-    if (riding && st == ST_PLAY) { ach_run_tick(dt); look_trail(dt); }
+    if (riding && st == ST_PLAY) { ach_run_tick(dt); look_trail(dt); rec_tick(); }
     perf_mark(PF_SIM);
     audioBufs = audio_tick(); perf_mark(PF_AUDIO);
 #ifdef SHOWCASE                                                    // test builds: hold the title scene at the garage for the banner
@@ -512,10 +579,11 @@ int main(void) {
     topHud();
     gfx_bottom_begin(H(0a0612));
     ui_begin();
-    int shown = screen == UI_SETTINGS ? UI_SETTINGS : st == ST_TITLE ? screen : -1;
+    int shown = screen == UI_SETTINGS || screen == UI_CODE ? screen : st == ST_TITLE ? screen : -1;
     if (shown == UI_SETTINGS) bottomSettings();
     else if (shown == UI_ARCHIVE) bottomArchive();
     else if (shown == UI_GARAGE) bottomGarage();
+    else if (shown == UI_CODE) bottomCode();
     else if (shown == UI_TITLE) bottomTitle();
     else if (st == ST_OVER) bottomOver();
     else bottomPlay(touchY);
@@ -537,6 +605,7 @@ int main(void) {
         else if (row == S_CLOCK) settingsAdjust(row, 1);
         else if (row >= S_GO && row <= S_DOWN) capturing = row - S_GO;
         else if (row == S_RESET) { memcpy(binds, BIND_DEFAULT, sizeof binds); save(); }
+        else if (row == S_DISCORD) { if (!sync_linked()) sync_link_prompt(); else if (unlinkAsk) { sync_unlink(); unlinkAsk = false; } else unlinkAsk = true; }
       } else if (shown == UI_TITLE) {
         if (p == T_RIDE) ridePicked(MODE_WEEK);
         else if (p == T_DAILY) ridePicked(MODE_DAILY);
@@ -544,6 +613,8 @@ int main(void) {
         else if (p == T_GARAGE) openGarage();
         else if (p == T_SETTINGS) openSettings();
         else if (p == T_SOUND) toggleSound();
+      } else if (shown == UI_CODE) {
+        if (p == 0) { screen = backTo; ui_reset_focus(); }
       } else if (shown == UI_GARAGE) {
         if (p == G_BACK) { screen = UI_TITLE; ui_reset_focus(); }
         else if (p == G_LOOK || p == G_ACH) { garTab = p == G_ACH; garSel = garTop = 0; }
@@ -555,11 +626,13 @@ int main(void) {
         if (p == 0) { screen = UI_TITLE; enterMode(MODE_WEEK); ui_reset_focus(); }
         else { int i = archTop + (p - 1); if (i < nOldWeeks()) { archSel = i; oldWeek = archWeek(i); ridePicked(MODE_OLD); } }
       } else if (st == ST_OVER) {
-        if (p == O_AGAIN) startRun(); else if (p == O_MENU) { enterMode(mode == MODE_OLD ? MODE_WEEK : mode); screen = UI_TITLE; ui_reset_focus(); }
+        if (p == O_CODE) openCode();
+        else if (p == O_AGAIN) startRun(); else if (p == O_MENU) { enterMode(mode == MODE_OLD ? MODE_WEEK : mode); screen = UI_TITLE; ui_reset_focus(); }
       }
     }
   }
   save();
+  sync_exit();
   audio_exit();
   gfx_exit();
   return 0;
