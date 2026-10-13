@@ -18,6 +18,7 @@
 #define THIN_RAILS_FROM 20737
 #define FIRST_WEEK 20730
 #define DAILY_BASE 1000000
+#define PARKS_FROM 20758        // maps from Nov 1 2026 on pick from all five landscapes (look only)
 
 typedef struct { double x, len; } Span;
 typedef struct { double x, len; int side; int combo; int combo_i; } Rail;  // side -1 = a set piece's, picked by its swerve
@@ -55,8 +56,9 @@ extern double BIKE_SCALE, BODY_MID, PROBE;
 extern double RC, RW;
 extern Spans gaps, edges, holds;
 extern Rail *rails; extern int nrails;
-extern int SEASON;       // 0 none, 1 halloween, 2 christmas
+extern int SEASON;       // 0 none, 1 halloween, 2 christmas, 3 thanksgiving
 extern int ORDER[3], skyPerm[4];
+extern int LAND;         // the landscape: 0 desert, 1 coast, 2 forest, 3 yosemite, 4 canyon
 
 // state
 extern int st;
@@ -86,6 +88,7 @@ bool hitEdge(double wx, double y, double py);
 int seasonOf(int seed);
 void nameOf(int seed, int season, char *out, int n);
 int zoneAt(void);
+int landOf(int seed);
 void newRun(void);
 int scoreOf(void);
 

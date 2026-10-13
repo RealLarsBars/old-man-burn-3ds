@@ -6,41 +6,59 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define H(x) RGB(0x##x)
 #define F(x, y, w, h) cv_rect((x), (y), (w), (h))
 static void R(double x, double y, double w, double h, col_t c) { cv_fill(c); cv_rect(x, y, w, h); }
 
-/* ---------- scenery: three landscapes, each with its own sky chosen by the weekly seed ---------- */
-typedef struct { int kind; col_t ground, spA, spB, lit, shade, haze, sea, seaHi; } Zone;   // kind 0 desert, 1 coast, 2 forest
-static const Zone BASE_ZONES[3] = {
+/* ---------- scenery: one landscape per map, each with its own sky chosen by the seed ---------- */
+typedef struct { int kind; col_t ground, spA, spB, lit, shade, haze, sea, seaHi; } Zone;   // kind 0 desert, 1 coast, 2 forest, 3 yosemite, 4 canyon
+#define NZONES 5
+static const Zone BASE_ZONES[NZONES] = {
   { 0, H(c8d489), H(8aa764), H(e6ebad), H(dcd77c), H(3e7f7a), H(d9dea0), 0, 0 },
   { 1, H(ecd0a8), H(c59a78), H(fbe8c8), H(9fd0d6), H(2f7288), H(f6dcb8), 0, 0 },
-  { 2, H(86b57c), H(4e8260), H(b4d896), H(9a88cc), H(4a3e84), H(adcf98), 0, 0 }
+  { 2, H(86b57c), H(4e8260), H(b4d896), H(9a88cc), H(4a3e84), H(adcf98), 0, 0 },
+  // national parks (maps from PARKS_FROM on): granite domes over a pine meadow, and red canyon buttes
+  { 3, H(8fb36a), H(6e9a52), H(c4d890), H(d4cfc4), H(7c8094), H(d4e4c8), 0, 0 },
+  { 4, H(c8784a), H(a85a32), H(e8a870), H(ec9a5c), H(983a2c), H(f2c8a0), 0, 0 }
 };
 typedef struct { col_t top, bot; bool sun, stars, moon; } Sky;
 static const Sky SKIES[4] = { { H(ff3a4a), H(ff9a62), true, false, false }, { H(15405c), H(f2b08e), false, false, false },
                               { H(0b0830), H(7a3590), false, true, false }, { H(5a6fd4), H(ffc9a6), true, false, false } };
-static const Zone SEASON_ZONE[3] = { { 0 }, { 0, H(4a3b30), H(33281f), H(6e4f33), H(4b3a6e), H(21163a), H(8a3a5a), H(231a44), H(6a5a9a) },
-                                     { 0, H(e6edf8), H(c6d2ea), H(ffffff), H(f4f8ff), H(8aa0c8), H(dfe8ff), H(3a6a9a), H(cfe4ff) } };
-static const Sky SEASON_SKY[3] = { { 0 }, { H(0e0620), H(d8582a), false, true, true }, { H(0b1638), H(7d97d0), false, true, false } };
-static Zone ZONES[3];
+static const Sky PARK_SKIES[2][2] = { { { H(2f6fd0), H(c4e2ff), true, false, false }, { H(4a5aa8), H(ffb48e), true, false, false } },
+                                      { { H(ff5a3a), H(ffd08a), true, false, false }, { H(3a8ae0), H(ffe0b0), true, false, false } } };
+// index by SEASON: 1 Halloween, 2 Christmas, 3 Thanksgiving (Thanksgiving only recolours the ground and haze)
+static const Zone SEASON_ZONE[4] = { { 0 }, { 0, H(4a3b30), H(33281f), H(6e4f33), H(4b3a6e), H(21163a), H(8a3a5a), H(231a44), H(6a5a9a) },
+                                     { 0, H(e6edf8), H(c6d2ea), H(ffffff), H(f4f8ff), H(8aa0c8), H(dfe8ff), H(3a6a9a), H(cfe4ff) },
+                                     { 0, H(7f9a4a), H(d8782a), H(b8402a), 0, 0, H(f0c890), 0, 0 } };
+static const Sky SEASON_SKY[4] = { { 0 }, { H(0e0620), H(d8582a), false, true, true }, { H(0b1638), H(7d97d0), false, true, false },
+                                   { H(4a74c8), H(ffc890), true, false, false } };
+static Zone ZONES[NZONES];
+static const col_t FALL[4] = { H(d8602a), H(e8a030), H(b83a24), H(c8782a) };   // autumn leaf colours
 static struct { col_t wall, A, B; } GAR;
 static double stars[36][3];
 static bool garageDirty = true;                                  // the garage's cached picture needs redrawing
 
-static const Sky *skyOf(int zi) { return SEASON ? &SEASON_SKY[SEASON] : &SKIES[skyPerm[zi]]; }
+static const Sky *skyOf(int zi) {
+  if (SEASON) return &SEASON_SKY[SEASON];
+  if (zi >= 3) return &PARK_SKIES[zi - 3][(int)floor(hash(SEED, 25) * 2)];
+  return &SKIES[skyPerm[zi]];
+}
 
 void look_apply(void) {                                         // rebuild the sky, ground and garage for the current map
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < NZONES; i++) {
     ZONES[i] = BASE_ZONES[i];
-    if (SEASON) { int k = ZONES[i].kind; ZONES[i] = SEASON_ZONE[SEASON]; ZONES[i].kind = k; }
-    pat_make(PAT_G0 + i, ZONES[i].ground, ZONES[i].spA, ZONES[i].spB, 520, 3);
+    const Zone *L = &SEASON_ZONE[SEASON];
+    if (SEASON == 3) { ZONES[i].ground = L->ground; ZONES[i].spA = L->spA; ZONES[i].spB = L->spB; ZONES[i].haze = L->haze; }
+    else if (SEASON) { int k = ZONES[i].kind; ZONES[i] = *L; ZONES[i].kind = k; }
   }
+  { const Zone *z = &ZONES[zoneAt()]; pat_make(PAT_G0, z->ground, z->spA, z->spB, 520, 3); }   // only this map's ground is ever drawn
   static const col_t walls[3] = { H(1c1a2e), H(2b1824), H(142533) }, As[3] = { H(ff3ea5), H(ffd21f), H(ff5a3a) }, Bs[3] = { H(22e6d8), H(9bb8ff), H(7dff9c) };
   GAR.wall = walls[(int)floor(hash(SEED, 40) * 3)]; GAR.A = As[(int)floor(hash(SEED, 41) * 3)]; GAR.B = Bs[(int)floor(hash(SEED, 42) * 3)];
   if (SEASON == 1) { GAR.wall = H(1a1024); GAR.A = H(ff8a1f); GAR.B = H(b98cff); }
   if (SEASON == 2) { GAR.wall = H(142533); GAR.A = H(ff3a3a); GAR.B = H(7dff9c); }
+  if (SEASON == 3) { GAR.wall = H(2a1c14); GAR.A = H(ff8a2a); GAR.B = H(ffd27a); }
   garageDirty = true;
 }
 void draw_init(void) {
@@ -99,6 +117,23 @@ static void drawSeasonDecor(double sx, double oy, double sz, double ty) {
       int h = 18 + (int)(sz * 10); col_t c = H(2a1c24);
       R(sx, oy - h, 2, h, c); R(sx - 5, oy - h + 4, 6, 1, c); R(sx - 6, oy - h + 1, 1, 4, c); R(sx + 2, oy - h + 7, 6, 1, c); R(sx + 7, oy - h + 4, 1, 4, c); R(sx + 1, oy - h - 3, 1, 3, c);
     }
+  } else if (SEASON == 3) {
+    if (ty < 0.3) {                                             // a pile of raked leaves
+      for (int q = 0; q < 9; q++) R(rnd(sx - 7 + hash(q, (int)sx) * 13), rnd(oy - 2 - hash(q + 9, (int)sx) * 5), 3, 2, FALL[q & 3]);
+    } else if (ty < 0.5) {                                      // a turkey strutting along the lawn
+      int bob = sin(T * 6 + sx) > 0 ? 1 : 0; static const col_t tail[5] = { H(b83a24), H(e8a030), H(6a3a1e), H(e8a030), H(b83a24) };
+      for (int q = 0; q < 5; q++) R(sx - 7 + q * 2, oy - 12 + abs(q - 2), 2, 6, tail[q]);
+      R(sx - 4, oy - 7, 7, 5, H(5a3418)); R(sx + 3, oy - 10 + bob, 2, 4, H(5a3418)); R(sx + 4, oy - 10 + bob, 2, 1, H(e8a030)); R(sx + 4, oy - 8 + bob, 1, 2, H(d8242e));
+      R(sx - 2, oy - 2, 1, 2, H(e8a030)); R(sx + 1, oy - 2, 1, 2, H(e8a030));
+    } else if (ty < 0.7) {                                      // a hay bale with a pumpkin on top
+      R(sx - 7, oy - 6, 14, 6, H(d8b858)); R(sx - 7, oy - 4, 14, 1, H(b89838)); R(sx - 7, oy - 2, 14, 1, H(b89838));
+      R(sx - 3, oy - 10, 6, 4, H(e0701a)); R(sx, oy - 12, 1, 2, H(4a7a2a));
+    } else if (ty < 0.85) {                                     // a mailbox
+      static const col_t box[3] = { H(3a6a9a), H(2a2a32), H(c8242e) };
+      R(sx, oy - 10, 2, 10, H(5a3a2a)); R(sx - 4, oy - 14, 9, 5, box[(int)floor(sz * 3)]); R(sx + 4, oy - 16, 1, 3, H(d8242e));
+    } else {                                                    // a street sign pointing the way
+      R(sx, oy - 16, 1, 16, H(8a8a96)); R(sx - 6, oy - 18, 13, 4, H(1f7a4a)); R(sx + 7, oy - 17, 1, 2, H(1f7a4a)); R(sx - 5, oy - 16, 9, 1, H(f4f0e8));
+    }
   } else {
     if (ty < 0.55) {                                            // a snowy pine strung with blinking lights
       int h = 14 + (int)(sz * 12);
@@ -127,6 +162,116 @@ static void peaks(double par, double hmin, double hmax, double wmin, double wmax
   }
   cv_alpha(a0);
 }
+/* ---------- the national parks and the Thanksgiving suburb (as in web/game.js) ---------- */
+static void ellipseFill(double cx, double cy, double rx, double ry);
+typedef void (*AtFn)(double x, int i, const Zone *Z);
+static void eachAt(double camX, double par, double step, AtFn fn, const Zone *Z) {   // one thing every `step` px of a layer scrolling at `par`
+  double off = camX * par; int i0 = (int)floor(off / step) - 1, i1 = (int)floor((off + LW) / step) + 1;
+  for (int i = i0; i <= i1; i++) fn(rnd(i * step - off), i, Z);
+}
+static void pine(double x, double base, int h, col_t dark, col_t lit) {   // a stepped pixel pine
+  for (int q = 0, rows = h >> 1; q < rows; q++) { int w = 1 + q * 5 / rows + (q & 1); R(x - w, base - h + q * 2, w * 2 + 1, 2, dark); R(x - w, base - h + q * 2, 1, 2, lit); }
+  R(x, base, 1, 2, H(3a2a1e));
+}
+static void halfDome(double x, int i, const Zone *Z) {
+  cv_fill(Z->lit); cv_begin(); cv_move(x - 100, HOR + 8); cv_quad(x - 66, HOR - 74, x, HOR - 80);
+  cv_line(x + 10, HOR - 78); cv_line(x + 14, HOR - 30); cv_quad(x + 44, HOR - 18, x + 90, HOR + 8); cv_close(); cv_fillpath();
+  cv_fill(Z->shade); { double p[8] = { x + 2, HOR - 80, x + 10, HOR - 78, x + 14, HOR - 30, x + 4, HOR - 38 }; cv_poly(p, 4); }
+  cv_begin(); cv_move(x + 14, HOR - 30); cv_quad(x + 44, HOR - 18, x + 90, HOR + 8); cv_line(x + 20, HOR + 8); cv_close(); cv_fillpath();
+  for (int k = 0; k < 4; k++) R(x + 5 + k * 2, HOR - 74 + k * 3, 1, 26 + k * 2, shadec(Z->shade, 0.85));
+  for (int k = 0; k < 6; k++) R(x - 60 + k * 10, HOR - 40 - (k < 3 ? k * 12 : (5 - k) * 8), 1, 30, shadec(Z->lit, 0.9));   // granite streaks
+  (void)i;
+}
+static void elCap(double x, int i, const Zone *Z) {
+  cv_fill(Z->lit); cv_begin(); cv_move(x - 80, HOR + 8); cv_line(x - 66, HOR - 46); cv_quad(x - 50, HOR - 90, x - 20, HOR - 94);
+  cv_line(x + 30, HOR - 92); cv_line(x + 36, HOR + 8); cv_close(); cv_fillpath();
+  cv_fill(Z->shade); { double p[8] = { x + 14, HOR - 93, x + 30, HOR - 92, x + 36, HOR + 8, x + 18, HOR + 8 }; cv_poly(p, 4); }
+  for (int k = 0; k < 5; k++) R(x - 30 + k * 9, HOR - 80 + (int)(hash(i, k) * 20), 1, 40, shadec(Z->lit, 0.88));
+  double a0 = cv_get_alpha();
+  for (int y = HOR - 74; y < HOR + 2; y += 2) {                 // a waterfall spilling off the rim, shimmering as it falls
+    cv_alpha(a0 * (0.55 + 0.45 * fabs(sin(T * 9 - y * 0.35)))); R(x - 54 + (int)((y - HOR) * 0.04), y, 2, 2, H(f4f8ff));
+  }
+  cv_alpha(a0 * 0.5); cv_fill(H(f4f8ff)); cv_circle(x - 55, HOR + 2, 6 + sin(T * 3)); cv_alpha(a0);
+}
+static void parkRock(double px, int i, const Zone *Z) { double x = px + 120 + rnd(hash(i, 140) * 120); if (i & 1) halfDome(x, i, Z); else elCap(x, i, Z); }
+// The Old 3DS can't afford the web's stepped treeline (over a thousand rectangles), so the far pines are plain triangles.
+static void farPine(double x, int i, const Zone *Z) {
+  (void)Z; int h = 12 + (int)(hash(i, 150) * 16), w = 2 + h / 5;
+  cv_fill(H(2c5a40)); tri(x - w, HOR + 6, x, HOR + 6 - h, x + w + 1, HOR + 6);
+  R(x - 1, HOR + 6 - h + 3, 1, h - 4, H(3e7452));
+}
+static void drawYosemite(const Zone *Z, double camX) {
+  peaks(0.04, 12, 26, 60, 100, 120, 0.4, camX, 130, Z->lit, Z->shade);
+  eachAt(camX, 0.09, 560, parkRock, Z);
+  eachAt(camX, 0.18, 7, farPine, Z);
+}
+static col_t bands[5];
+static void butte(double px, int i, double sc, col_t fade, double fadeA) {   // a stepped butte striped with rock layers
+  double x = px + rnd(hash(i, 161) * 60), w = rnd((50 + hash(i, 162) * 70) * sc), h = rnd((40 + hash(i, 163) * 44) * sc); int tiers = 2 + (int)(hash(i, 164) * 3);
+  for (int k = 0; k < tiers; k++) {
+    double tw = rnd(w * (1 - k * 0.24)), tx = x + rnd((w - tw) * (0.3 + hash(i, 165) * 0.4)), ty = HOR + 6 - rnd(h * (k + 1) / tiers), th = rnd(h / tiers) + 1;
+    for (int y = 0; y < th; y += 3) R(tx, ty + y, tw, fmin(3, th - y), bands[(k * 2 + y / 3 + ((i % 5) + 5)) % 5]);
+    R(tx + rnd(tw * 0.68), ty, tw - rnd(tw * 0.68), th, rgba(40, 10, 20, .22));
+    if (fadeA > 0) R(tx, ty, tw, th, fade);
+  }
+}
+static void farButte(double px, int i, const Zone *Z) { (void)Z; butte(px, i + 500, 0.7, rgba(190, 120, 150, .45), 1); }
+static void nearButte(double px, int i, const Zone *Z) { (void)Z; butte(px, i, 1, 0, 0); }
+static void farRim(double x, int i, const Zone *Z) {
+  (void)Z; double top = HOR - 20 - (int)(hash(i, 160) * 8), a0 = cv_get_alpha(); cv_alpha(a0 * 0.55);
+  R(x, top, 41, HOR + 8 - top, H(b2708a)); R(x, top + 5, 41, 1, H(d8a0a8)); R(x, top + 11, 41, 1, H(9a5a7a)); cv_alpha(a0);
+}
+static void drawCanyon(const Zone *Z, double camX) {
+  bands[0] = Z->shade; bands[1] = Z->lit; bands[2] = shadec(Z->lit, 0.86); bands[3] = shadec(Z->shade, 0.8); bands[4] = shadec(Z->lit, 0.94);
+  eachAt(camX, 0.03, 40, farRim, Z);                            // the far rim
+  eachAt(camX, 0.055, 110, farButte, Z);                        // far buttes, hazy
+  eachAt(camX, 0.1, 190, nearButte, Z);
+  R(0, HOR - 1, LW, 3, shadec(Z->shade, 0.55));                 // the gorge, with the river glinting at the bottom
+  for (int i = 0; i < 14; i++) R(rnd(jmod(jmod(hash(i, 170) * LW - camX * 0.1, LW) + LW, LW)), HOR, 3, 1, H(7ad0e0));
+}
+static const col_t HOUSE[6] = { H(e8dcc0), H(a8c4d8), H(c8d4a8), H(c86a4a), H(f0d890), H(d8b0a0) }, ROOF[3] = { H(5a3a3a), H(3a3a4a), H(6a4a2a) };
+static void house(double x, double base, double w, double h, col_t body, col_t roof, bool chimney) {
+  R(x, base - h, w, h, body); R(x, base - h, w, 1, shadec(body, 0.8));
+  cv_fill(roof); tri(x - 4, base - h + 1, x + w / 2, base - h - 16, x + w + 4, base - h + 1);
+  if (chimney) {
+    R(x + w - 16, base - h - 14, 5, 9, H(8a3a2a)); double a0 = cv_get_alpha();
+    for (int k = 0; k < 3; k++) { double t = fmod(T * 0.5 + k / 3.0, 1); cv_alpha(a0 * 0.5 * (1 - t)); cv_fill(H(e8e4ec)); cv_circle(x + w - 13 + t * 8, base - h - 16 - t * 18, 2 + t * 3); }
+    cv_alpha(a0);
+  }
+  for (int k = 0, n = w > 70 ? 3 : 2; k < n; k++) { int wx = (int)(x + 6 + k * ((w - 18) / (n - 1))); R(wx - 1, base - h + 5, 8, 8, H(f4f0e8)); R(wx, base - h + 6, 6, 6, H(ffd88a)); R(wx + 3, base - h + 6, 1, 6, H(f4f0e8)); }
+  R(x + (int)w / 2 - 3, base - 10, 7, 10, H(7a2a2a)); R(x + (int)w / 2 + 2, base - 5, 1, 1, H(ffd21f));
+}
+static void farTree(double x, int i, const Zone *Z) { (void)Z; cv_fill(FALL[i & 3]); cv_circle(x, HOR - 6 - hash(i, 180) * 10, 10 + hash(i, 181) * 6); }
+static void streetHouse(double x, int i, const Zone *Z) {
+  (void)Z; int w = 56 + (int)(hash(i, 182) * 30), h = 24 + (int)(hash(i, 183) * 10);
+  house(x, HOR + 6, w, h, HOUSE[(int)floor(hash(i, 184) * 6)], ROOF[(int)floor(hash(i, 185) * 3)], hash(i, 186) < 0.6);
+  double tx = x + w + 14; R(tx, HOR - 8, 3, 14, H(4a2e1e)); cv_fill(FALL[(i + 1) & 3]); cv_circle(tx + 1, HOR - 14, 9);
+}
+static void drawSuburb(const Zone *Z, double camX) {
+  eachAt(camX, 0.05, 18, farTree, Z);                           // far treetops in autumn colours
+  eachAt(camX, 0.14, 120, streetHouse, Z);
+  R(0, HOR + 6, LW, 3, H(cfc6b4)); R(0, HOR + 9, LW, 1, H(9a917e));   // the sidewalk
+}
+// Thanksgiving: Grandson's house waits at your best distance on this map, so beating your best means you made it for dinner.
+int draw_best_m = 0;
+static void drawGrandson(double camX) {
+  double wx = fmax(draw_best_m, 300) * M_PX, x = rnd(wx - camX); if (x < -120 || x > LW + 40) return;
+  double top = 1e9; for (int k = -20; k <= 100; k += 20) { roadAt(wx + k); top = fmin(top, RC - RW / 2); }
+  double base = rnd(top - 4), w = 76, h = 30;
+  house(x, base, w, h, H(f0d890), H(6a2a2a), true);
+  R(x + 10, base - h - 26, 1, 10, H(f4f0e8)); R(x + w - 10, base - h - 26, 1, 10, H(f4f0e8));   // balloons on the porch
+  cv_fill(H(ff3a4a)); ellipseFill(x + 10, base - h - 29 + sin(T * 2 + x + 10) * 1.5, 3, 4);
+  cv_fill(H(3ab0ff)); ellipseFill(x + w - 10, base - h - 29 + sin(T * 2 + x + w - 10) * 1.5, 3, 4);
+  R(x + 8, base - h + 15, w - 16, 7, H(c8242e)); R(x + 8, base - h + 15, w - 16, 1, H(ff6a5a));
+  cv_text("HI GRANDPA!", x + w / 2, base - h + 18.5, 6, H(ffffff), AL_CENTER, BL_MIDDLE);
+  R(x + w + 6, base - 12, 2, 12, H(5a3a2a)); R(x + w + 2, base - 15, 10, 5, H(3a6a9a));   // the mailbox
+}
+static void drawLeaves(void) {                                  // autumn leaves tumbling across the screen
+  for (int i = 0; i < 22; i++) {
+    double x = rnd(jmod(jmod(hash(i, 190) * LW - T * (30 + hash(i, 191) * 30), LW) + LW, LW)), y = rnd(jmod(hash(i, 192) * LH + T * (14 + hash(i, 193) * 14) + sin(T * 2 + i) * 6, LH));
+    R(x, y, sin(T * 5 + i) > 0 ? 2 : 1, 2, FALL[i & 3]);
+  }
+}
 static void drawBackdrop(int zi, double camX) {
   const Zone *Z = &ZONES[zi]; const Sky *sky = skyOf(zi);
   { double st0[2] = { 0, 1 }; col_t sc[2] = { sky->top, sky->bot }; cv_grad(0, 0, LW, HOR + 2, true, 0, HOR, 2, st0, sc); }
@@ -134,7 +279,10 @@ static void drawBackdrop(int zi, double camX) {
   if (sky->moon) drawMoon();
   if (SEASON == 1) drawBats(camX);
   if (sky->sun) { cv_fill(rgba(255, 225, 140, .85)); cv_circle(330, HOR - 8, 22); cv_fill(rgba(255, 225, 140, .25)); cv_circle(330, HOR - 8, 34); }
-  if (Z->kind == 0) { peaks(0.1, 22, 42, 40, 70, 90, 0.55, camX, 50, Z->lit, Z->shade); peaks(0.22, 34, 74, 48, 82, 100, 1, camX, 70, Z->lit, Z->shade); }
+  if (SEASON == 3) drawSuburb(Z, camX);
+  else if (Z->kind == 3) drawYosemite(Z, camX);
+  else if (Z->kind == 4) drawCanyon(Z, camX);
+  else if (Z->kind == 0) { peaks(0.1, 22, 42, 40, 70, 90, 0.55, camX, 50, Z->lit, Z->shade); peaks(0.22, 34, 74, 48, 82, 100, 1, camX, 70, Z->lit, Z->shade); }
   else if (Z->kind == 1) {
     R(0, HOR - 18, LW, 22, Z->sea ? Z->sea : H(2f8fa6)); R(0, HOR - 18, LW, 1, Z->seaHi ? Z->seaHi : H(7bd0d8));
     cv_fill(rgba(255, 240, 200, .7)); for (int i = 0; i < 26; i++) F(rnd(jmod(hash(i, 80) * LW - camX * 0.05 + LW * 4, LW)), HOR - 16 + (int)(hash(i, 81) * 16), 2 + (int)(hash(i, 82) * 4), 1);
@@ -149,7 +297,7 @@ static void drawBackdrop(int zi, double camX) {
       cv_fill(H(f1ecf7)); { double p[16] = { px - 38, HOR - 66, px - 14, HOR - 86, px + 14, HOR - 86, px + 38, HOR - 66, px + 22, HOR - 70, px + 8, HOR - 62, px - 6, HOR - 69, px - 20, HOR - 63 }; cv_poly(p, 8); }
     }
   }
-  cv_pattern(PAT_G0 + zi, 0, HOR, LW, LH - HOR);
+  cv_pattern(PAT_G0, 0, HOR, LW, LH - HOR);
   { double st0[3] = { 0, 0.3, 1 }; col_t hc[3] = { 0xffffff00, Z->haze, 0xffffff00 }; cv_grad(0, HOR - 6, LW, 28, true, HOR - 6, HOR + 22, 3, st0, hc); }
 }
 static void drawDecor(int zi, double camX, bool front) {
@@ -169,6 +317,16 @@ static void drawDecor(int zi, double camX, bool front) {
     } else if (kind == 1) {
       if (ty < 0.65) { R(sx, oy - 16, 2, 16, H(8a5a3a)); cv_fill(H(2ea57f)); for (int q = 0; q < 6; q++) { double an = q / 6.0 * 6.283 + sz * 3; for (int r = 2; r < 11; r += 2) F(rnd(sx + 1 + cos(an) * r), rnd(oy - 16 + sin(an) * r * 0.55), 2, 2); } }
       else { R(sx, oy - 12, 1, 12, H(f1ecf7)); cv_fill(sz < 0.5 ? H(ff4a4a) : H(ffd21f)); F(sx - 7, oy - 14, 15, 3); F(sx - 5, oy - 16, 11, 2); }
+    } else if (kind == 3) {
+      if (ty < 0.6) pine(sx, oy - 2, 18 + (int)(sz * 16), H(24543a), H(3a7050));                                  // a tall pine
+      else if (ty < 0.85) { R(sx - 6, oy - 6, 13, 6, H(9a9aa8)); R(sx - 4, oy - 8, 9, 2, H(b8b8c4)); R(sx - 6, oy - 1, 13, 1, H(6a6a7a)); }   // a granite boulder
+      else if (ty < 0.93) { R(sx - 5, oy - 6, 10, 5, H(2a1e18)); R(sx + 4, oy - 8, 4, 4, H(2a1e18)); R(sx + 7, oy - 7, 1, 1, H(c8a080)); R(sx - 4, oy - 1, 2, 1, H(2a1e18)); R(sx + 2, oy - 1, 2, 1, H(2a1e18)); }   // a black bear
+      else { R(sx - 1, oy - 10, 1, 10, H(5a3a22)); R(sx + 6, oy - 10, 1, 10, H(5a3a22)); R(sx - 3, oy - 15, 12, 6, H(6a4424)); R(sx - 2, oy - 13, 10, 1, H(e8d8a0)); R(sx - 2, oy - 11, 7, 1, H(e8d8a0)); }   // a park sign
+    } else if (kind == 4) {
+      if (ty < 0.45) { R(sx, oy - 4, 2, 4, H(5a3a22)); cv_fill(H(4a6a3a)); cv_circle(sx + 1, oy - 7, 4 + sz * 2); R(sx - 1, oy - 9, 2, 1, H(6a8a4a)); }   // a juniper
+      else if (ty < 0.75) { R(sx - 5, oy - 5, 11, 5, H(a84a2a)); R(sx - 3, oy - 7, 6, 2, H(c8643a)); R(sx - 5, oy - 1, 11, 1, H(7a3020)); }   // a red rock
+      else if (ty < 0.9) { for (int q = 0; q < 4; q++) R(sx - 3 + q, oy - 2 - q * 2, 7 - q * 2, 2, q & 1 ? H(c8a888) : H(a88868)); }   // a cairn
+      else { for (int q = -2; q <= 2; q++) R(sx + q * 2, oy - 6 + abs(q), 1, 6 - abs(q), H(7a9a5a)); }   // an agave
     } else {
       if (ty < 0.8) { int h = 12 + (int)(sz * 12); cv_fill(H(2c6b4a)); for (int q = 0; q < 3; q++) { double w = 4 + q * 3, yy = oy - h + q * (h / 3.0 - 1); F(sx - w, yy + 2, w * 2 + 1, h / 3.0 + 1); } R(sx - 1, oy - 2, 3, 3, H(1d4d38)); R(sx - 1, oy - h + 1, 3, 2, H(dfe8ff)); }
       else { R(sx - 6, oy - 5, 13, 5, H(5c5a76)); R(sx - 4, oy - 7, 8, 3, H(8d8aa8)); }
@@ -195,7 +353,7 @@ static void drawRoad(double camX) {
     int gi = (int)gx;
     for (int y = 118; y <= 262; y += 3) {
       double l = sx + rnd(hash(gi, y) * 12 - 6), r = ex + rnd(hash(gi + 7, y) * 12 - 6);
-      cv_pattern(PAT_G0 + zoneAt(), l, y, r - l, y + 3 <= 262 ? 3 : 1);
+      cv_pattern(PAT_G0, l, y, r - l, y + 3 <= 262 ? 3 : 1);
     }
   }
 }
@@ -206,7 +364,17 @@ static double yRail(double x, int i) { roadAt(x); return railY(railSide(i)); }
 static void railLine(double x0, double x1, double camX, YFn yFn, int arg, bool heavy, double postLen, bool cap) {
   double a = fmax(x0, camX - 8), b = fmin(x1, camX + LW + 8); if (b <= a) return;
   double s0 = floor(a / 4) * 4;
-  if (SEASON != 1) {                                           // the usual rails, merged into runs at the same height
+  if (SEASON == 3) {                                           // a white picket fence along the lawns; the rail is merged into runs
+    double runX = 0, runY = 0; bool run = false; int rh = heavy ? 2 : 1, ph = heavy ? 5 : 4;
+    for (double x = s0; x <= b + 4; x += 4) {
+      bool end = x > b; double y = end ? 0 : rnd(yFn(x, arg)), sx = rnd(x - camX);
+      if (run && (end || y != runY)) { R(runX, runY - 1, sx - runX, 1, H(5a4a3a)); R(runX, runY, sx - runX, rh, H(f4f0e8)); run = false; }
+      if (end) break;
+      if (!run) { run = true; runX = sx; runY = y; }
+      R(sx + 1, y - ph, 2, ph + 3, H(f4f0e8)); R(sx + 2, y - ph + 1, 1, ph + 2, H(c8c0b4));
+      if (fmod(x, 32) == 0) R(sx, y - ph - 1, 3, postLen + ph + 1, H(d8d0c4));
+    }
+  } else if (SEASON != 1) {                                    // the usual rails, merged into runs at the same height
     col_t beam = heavy ? H(6b2a3a) : H(7d5a6a), hi = heavy ? H(b04656) : H(a88494), post = heavy ? H(4e1d2a) : H(5e4552);
     double runX = 0, runY = 0; bool run = false; int bh = heavy ? 3 : 2;
     for (double x = s0; x <= b + 4; x += 4) {
@@ -302,7 +470,7 @@ static void garageStatic(void) {
   for (double y = base + 30; y < LH; y += 34) F(X(-140), y, 880, 1);
   cv_fill(rgba(20, 16, 32, .18)); { const double sh[4][3] = { { 110, 232, 26 }, { 250, 246, 20 }, { 380, 226, 30 }, { 520, 244, 22 } }; for (int i = 0; i < 4; i++) ellipseFill(X(sh[i][0]), sh[i][1], sh[i][2], 4); }
   cv_fill(rgba(255, 210, 31, .5)); for (int x = 30; x < 470; x += 56) F(X(x), 228, 2, 30);
-  for (int y = (int)base; y < LH; y += 4) cv_pattern(PAT_G0 + zoneAt(), X(690 + (int)(hash(y, 77) * 20)), y, 80, 4);
+  for (int y = (int)base; y < LH; y += 4) cv_pattern(PAT_G0, X(690 + (int)(hash(y, 77) * 20)), y, 80, 4);
   { double st0[2] = { 0, 1 }; col_t gc[2] = { GAR.A, GAR.A & 0xffffff00 }; cv_alpha(0.16); cv_grad(X(60), base, 260, 70, true, base, base + 70, 2, st0, gc); cv_alpha(1); }
   // roof
   double roofP[8] = { X(x0 - 16), wallTop - 2, X(x0 + 34), 50, X(x1 - 34), 50, X(x1 + 16), wallTop - 2 };
@@ -480,6 +648,7 @@ void render_game(const char *hint) {
   drawBackdrop(z0, camX);
   drawGarage(camX, false);
   drawRoad(camX);
+  if (SEASON == 3) drawGrandson(camX);
   drawDecor(z0, camX, false);
   drawRails(camX, false);
   draw_parts(g.parts, g.nparts, camX);
@@ -494,6 +663,7 @@ void render_game(const char *hint) {
   drawRails(camX, true);
   if (st == ST_CRASH || st == ST_OVER) drawCrashFX();
   if (SEASON == 2) drawSnow();
+  if (SEASON == 3) drawLeaves();
   cv_restore();
   if (st == ST_PLAY) {
     double pulse = 0.6 + 0.4 * sin(T * 14);

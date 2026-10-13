@@ -10,7 +10,7 @@ bool V2 = false;
 double BIKE_SCALE = 1, BODY_MID = 16, PROBE = 20;
 double RC = 189, RW = 46;
 int SEASON = 0;
-int ORDER[3] = { 0, 1, 2 }, skyPerm[4] = { 0, 1, 2, 3 };
+int ORDER[3] = { 0, 1, 2 }, skyPerm[4] = { 0, 1, 2, 3 }, LAND = 0;
 int st = ST_TITLE;
 bool paused = false;
 Run g;
@@ -246,21 +246,44 @@ int seasonOf(int seed) {                                // dates as in web/achie
   int day = seed >= DAILY_BASE ? seed - DAILY_BASE : seed, mo, d; civil(day, &mo, &d);
   int md = mo * 100 + d;
   if (md >= 1011 && md <= 1031) return 1;
+  { int sun = day - (day + 4) % 7, smo, sd; civil(sun, &smo, &sd);   // Thanksgiving goes by the Sunday that starts the week ("by_week")
+    int smd = smo * 100 + sd; if (smd >= 1118 && smd <= 1124) return 3; }
   if (md >= 1201 && md <= 1226) return 2;
   return 0;
 }
-static const char *NAMES[3][2][12] = {
+static const char *NAMES[4][2][12] = {
   { { "Midnight","Chrome","Crimson","Thunder","Velvet","Neon","Typhoon","Paper","Burning","Electric","Lacquer","Smoke" },
     { "Emperor","Highway","Pompadour","Tide","Sermon","Kamikaze","Circuit","Lantern","Fuji","Static","Dragon","Motorway" } },
   { { "Haunted","Pumpkin","Phantom","Graveyard","Witching","Cobweb","Banshee","Moonlit","Creeping","Hollow","Cackling","Candy Corn" },
     { "Hayride","Hollow","Crypt","Turnpike","Bypass","Boneyard","Cauldron","Parkway","Manor","Moor","Express","Freeway" } },
   { { "Candy Cane","Jingle","Frosty","Mistletoe","Sleigh Bell","Tinsel","Eggnog","Gingerbread","Snowy","Holly","Yule","North Pole" },
-    { "Causeway","Express","Turnpike","Lane","Run","Parkway","Bypass","Boulevard","Drift","Chimney","Motorway","Sleighway" } }
+    { "Causeway","Express","Turnpike","Lane","Run","Parkway","Bypass","Boulevard","Drift","Chimney","Motorway","Sleighway" } },
+  { { "Gravy","Cranberry","Pumpkin Pie","Drumstick","Stuffing","Wishbone","Harvest","Maple","Acorn","Leafy","Sweet Potato","Turkey" },
+    { "Lane","Court","Drive","Cul-de-sac","Way","Circle","Crescent","Avenue","Place","Terrace","Hollow","Grove" } }
 };
 void nameOf(int seed, int season, char *out, int n) {
   snprintf(out, n, "%s %s", NAMES[season][0][(int)floor(hash(seed, 1) * 12)], NAMES[season][1][(int)floor(hash(seed, 2) * 12)]);
 }
-int zoneAt(void) { return ORDER[0]; }                  // one landscape per weekly track, fixed for the whole run
+int zoneAt(void) { return LAND; }                      // one landscape per track, fixed for the whole run
+
+static void sortByC(int *a, int n, int c, int base) {   // [0..n).sort((a, b) => hash(c, base + a) - hash(c, base + b))
+  for (int i = 1; i < n; i++) for (int j = i; j > 0 && hash(c, base + a[j - 1]) > hash(c, base + a[j]); j--) { int t = a[j]; a[j] = a[j - 1]; a[j - 1] = t; }
+}
+/* As landOf in web/game.js: from the Nov 1 2026 maps on, the landscape comes from a shuffled cycle of all five, so none
+   repeats until every one has had its turn (weekly maps and the Daily Dash each run their own cycle). Earlier maps keep
+   the one they always had. It only changes the look, never the road. */
+int landOf(int seed) {
+  bool daily = seed >= DAILY_BASE; int day = daily ? seed - DAILY_BASE : seed;
+  if (day < PARKS_FROM) { int o[3] = { 0, 1, 2 }; sortByC(o, 3, seed, 10); return o[0]; }
+  int i = daily ? day - PARKS_FROM : (day - PARKS_FROM) / 7, salt = daily ? 60 : 50, cyc = i / 5;
+  int o[5] = { 3, 4, 0, 1, 2 }; if (daily) { o[0] = 4; o[1] = 3; }   // the parks open the first cycle
+  for (int c = 1; c <= cyc; c++) {
+    int last = o[4], n[5] = { 0, 1, 2, 3, 4 }; sortByC(n, 5, c, salt);
+    if (n[0] == last) { int t = n[0]; n[0] = n[1]; n[1] = t; }   // no repeat across the seam
+    memcpy(o, n, sizeof o);
+  }
+  return o[i % 5];
+}
 
 static void sortBy(int *a, int n, int base) {           // [0..n).sort((a, b) => hash(SEED, base + a) - hash(SEED, base + b))
   for (int i = 1; i < n; i++) for (int j = i; j > 0 && hash(SEED, base + a[j - 1]) > hash(SEED, base + a[j]); j--) { int t = a[j]; a[j] = a[j - 1]; a[j - 1] = t; }
@@ -273,6 +296,7 @@ void reseed(int seed, bool v2) {
   sortBy(skyPerm, 4, 20);
   for (int i = 0; i < 3; i++) ORDER[i] = i;
   sortBy(ORDER, 3, 10);
+  LAND = landOf(SEED);
   SEASON = seasonOf(SEED);
   newRun();
 }

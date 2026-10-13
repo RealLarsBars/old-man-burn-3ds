@@ -7,7 +7,8 @@ Wi-Fi it shares your profile, puts weekly runs on the board and uploads replays.
 
 - The top screen is the game. It's drawn at the web game's 480x270 and scaled to fit the 400x240 screen.
 - The bottom screen has the menus, your best, the score while you ride and the game-over card.
-- Halloween and Christmas maps get their seasonal look, and Halloween maps play the Haunted Organ, as on the web.
+- Halloween, Thanksgiving week and Christmas maps get their seasonal look, and Halloween maps play the Haunted Organ, as on the web.
+- From the Nov 1 2026 maps on, each map picks its landscape from desert, coast, forest, Yosemite and the Grand Canyon in the same shuffled cycle as the web game (`landOf` in `source/sim.c`). It only changes the look, never the road.
 - Music and sound are a small synth playing the same notes as the web game's Web Audio code. It runs on the console's
   second CPU core, so it doesn't slow the game down.
 
