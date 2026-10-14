@@ -149,6 +149,14 @@ static int archWeek(int i) { return liveWeek - 7 - i * 7; }      // the old-maps
 static const char *modeLabel(void) { return mode == MODE_DAILY ? "Today's Daily Dash" : mode == MODE_OLD ? "Old map" : "This week's track"; }
 
 static void topGarage(void), topCode(void);
+static int mapRecord(void) {                                     // the top of this map's Discord board (from the last sync), or your own best if higher
+  int rec = bestOf(curSeed);
+  if (mode != MODE_OLD) {
+    const BoardRow *rows; int pot; bool daily = mode == MODE_DAILY;
+    if (sync_board(daily, daily ? liveDay : liveWeek, &rows, &pot) > 0 && rows[0].score > rec) rec = rows[0].score;
+  }
+  return rec;
+}
 static bool topBoard(void) {                                     // linked: the Discord leaderboard where the blurb goes
   const BoardRow *rows; int pot; bool daily = mode == MODE_DAILY;
   int n = sync_board(daily, daily ? liveDay : liveWeek, &rows, &pot);
@@ -188,11 +196,11 @@ static void topHud(void) {
             "the back. Hold it too long and you shoot off the front. Mind the gout.", 16, 120, 9, UI_BONE, 250);
     return;
   }
-  int s = st == ST_PLAY ? scoreOf() : g.dist;                   // the riding HUD: score top right, track best in the middle
+  int s = st == ST_PLAY ? scoreOf() : g.dist;                   // the riding HUD: score top right, the map's record in the middle
   fmtNum(s, b);
   cv_font(FONT_DISP); cv_text(b, 362, 40, 32, H(a87400), AL_RIGHT, BL_ALPHA); cv_text(b, 360, 38, 32, H(ffd21f), AL_RIGHT, BL_ALPHA);
-  fmtNum(bestOf(curSeed), b);
-  cv_text("TRACK BEST", 200, 10, 7, rgba(255, 236, 220, .55), AL_CENTER, BL_ALPHA);
+  fmtNum(mapRecord(), b);
+  cv_text("TRACK RECORD", 200, 10, 7, rgba(255, 236, 220, .55), AL_CENTER, BL_ALPHA);
   cv_text(b, 200, 26, 14, rgba(255, 236, 220, .55), AL_CENTER, BL_ALPHA);
 }
 
