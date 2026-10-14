@@ -171,10 +171,10 @@ static bool topBoard(void) {                                     // linked: the 
   else { fmtNum(pot, sc); snprintf(b, sizeof b, "THIS WEEK'S BOARD · POT %s", sc); }
   ui_kicker(b, 16, 132, UI_PINK);
   if (!n) { ui_wrap(daily ? "Nobody's ridden today's map in Discord yet." : "Nobody's on the board yet. Be the first, sonny.", 16, 142, 9, UI_SUB, 200); return true; }
-  if (n > 5) n = 5;                                              // all 10, and their runs to watch, are on the BOARD page
+  double gap = n > 5 ? 12 : 17, y0 = n > 5 ? 148 : 152;            // all 10 fit closer together; BOARD watches their runs
   for (int i = 0; i < n; i++) {
-    const BoardRow *r = &rows[i]; double y = 152 + i * 17;
-    if (r->me) { cv_fill(rgba(255, 210, 31, .12)); cv_rect(12, y - 12, 206, 16); }
+    const BoardRow *r = &rows[i]; double y = y0 + i * gap;
+    if (r->me) { cv_fill(rgba(255, 210, 31, .12)); cv_rect(12, y - gap + 4, 206, gap - 1); }
     snprintf(b, sizeof b, "%d", i + 1); ui_text(b, 18, y, 9, i ? UI_DIM : UI_GOLD, AL_LEFT);
     ui_text(r->name, 32, y, 9, r->me ? UI_GOLD : UI_BONE, AL_LEFT);
     if (r->ds) ui_text("3DS", 36 + cv_text_width(r->name, 9), y - 1, 6, UI_CYAN, AL_LEFT);   // cv_text_width uses ui_text's font

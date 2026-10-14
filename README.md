@@ -65,7 +65,7 @@ type its 6-digit code on the 3DS. After that, whenever the console has Wi-Fi:
 - the profile is shared: achievements unlocked on Discord unlock their items here too, and the loadout follows you,
 - weekly runs go on the weekly board with a 3DS tag (they never count for the pot or the runner-up refund),
 - every run's replay uploads and shows up under 3DS RIDES in the Discord game (Daily Dash ones never get posted to chat).
-- the title screen shows the Discord leaderboard (the same top 5 as the Discord title screen, with this week's pot, or
+- the title screen shows the Discord leaderboard (the same top 10 as the Discord boards, with this week's pot, or
   today's Daily Dash board after a Daily Dash ride). It refreshes every five minutes on the menus and after each upload,
   and the last one is kept in `sdmc:/3ds/oldmanburn/board.json` so it still shows offline until its week or day is over.
 - BOARD on the title screen shows the whole top 10, weekly or Daily Dash (L / R or the tabs switch). Pick a row with
