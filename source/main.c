@@ -23,7 +23,7 @@ static int mode = MODE_WEEK, liveWeek, liveDay, oldWeek, curSeed;
 static char trackName[64];
 static bool optMusic = true, optSfx = true; static int tzOff = 0;   // hours the console clock is ahead of Pacific time
 static int dpadPct = 100, touchPct = 100;                       // steering sensitivity, percent (Settings sliders)
-enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE, UI_CODE };
+enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE, UI_CODE, UI_BOARD };
 static int screen = UI_TITLE, backTo = UI_TITLE;                // which menu the bottom screen shows (rides use st)
 static int capturing = -1;                                       // the control (BIND_*) waiting for a button press
 static int archSel, archTop;                                     // the old-maps list: highlighted week and scroll
@@ -31,6 +31,10 @@ static int garTab, garSel, garTop;                               // the garage: 
 static bool unlinkAsk;                                           // A once more on the Discord row unlinks
 static bool garageNew;                                           // unlocked something since the garage was last opened
 static int nUnlocked, unlocked[4];                               // what the last run unlocked, for the game over screen
+static int boardTab, boardSel;                                   // the BOARD page: weekly (0) or Daily Dash (1), highlighted row
+static bool watchLoading, watchDone;                             // asked the server for a board run; the one being watched ended
+static Watched *watch; static double watchT; static int watchI;  // the run being watched, how far in, its note before watchT
+static char boardMsg[96], ownLook[NSLOT][24];                    // a line for the BOARD page; your look while someone else's is on
 
 /* ---------- controls: go, up and down can be put on any button; the touch screen and Circle Pad always steer ---------- */
 typedef struct { u32 key; const char *name; } KeyName;
@@ -107,8 +111,9 @@ static const char *CAUSES[4][3] = { { "", "", "" },
   { "Slid off the back. Back in '73 we kept up with the Torino. Stay on the road and mind the throttle.", "Too slow. I once waited so long at the DMV they changed the carpet. Keep on the throttle.", "You nodded off, didn't you. Naps are for the fountain, not the highway." },
   { "Shot off the front. Slow down, you'll spill your thermos.", "Too fast. In 1964 we had a speed limit and a sense of shame.", "Went right past the screen. Wasn't that the Woolworth's?" },
   { "Hit the guardrail. They never had those on Route 9 in '66.", "Guardrail. Solid steel. Like my hip.", "You hit the barricade. Marge would have swerved." } };
-void on_crash(void) { audio_crash(); rec_end(g.dist, g.cause); }
+void on_crash(void) { audio_crash(); if (!simWatch) rec_end(g.dist, g.cause); }
 void on_over(void) {
+  if (simWatch) { watchDone = true; return; }                    // a watched run: nothing is saved, back to the board
   overAt = T; lastScore = g.dist; prevBest = bestOf(curSeed);
   newBest = setBest(curSeed, g.dist);
   perf_ride_end(g.dist);
@@ -122,7 +127,7 @@ void on_over(void) {
 // so leaving mid-ride ends the run on the spot (and saves the score before the console suspends).
 static void leftMidRide(APT_HookType hook, void *param) {
   (void)param;
-  if ((hook != APTHOOK_ONSUSPEND && hook != APTHOOK_ONSLEEP) || st != ST_PLAY) return;
+  if ((hook != APTHOOK_ONSUSPEND && hook != APTHOOK_ONSLEEP) || st != ST_PLAY || simWatch) return;   // watching isn't a run
   end_run_now(CAUSE_BEHIND);
   causeTxt = "You left mid-ride, so the old man slid off. Runs can't be paused.";
 }
@@ -148,7 +153,7 @@ static int nOldWeeks(void) { return liveWeek - 7 >= FIRST_WEEK ? (liveWeek - 7 -
 static int archWeek(int i) { return liveWeek - 7 - i * 7; }      // the old-maps list, newest first
 static const char *modeLabel(void) { return mode == MODE_DAILY ? "Today's Daily Dash" : mode == MODE_OLD ? "Old map" : "This week's track"; }
 
-static void topGarage(void), topCode(void);
+static void topGarage(void), topCode(void), topBoardPick(void);
 static int mapRecord(void) {                                     // the top of this map's Discord board (from the last sync), or your own best if higher
   int rec = bestOf(curSeed);
   if (mode != MODE_OLD) {
@@ -166,9 +171,10 @@ static bool topBoard(void) {                                     // linked: the 
   else { fmtNum(pot, sc); snprintf(b, sizeof b, "THIS WEEK'S BOARD · POT %s", sc); }
   ui_kicker(b, 16, 132, UI_PINK);
   if (!n) { ui_wrap(daily ? "Nobody's ridden today's map in Discord yet." : "Nobody's on the board yet. Be the first, sonny.", 16, 142, 9, UI_SUB, 200); return true; }
+  double gap = n > 5 ? 12 : 17, y0 = n > 5 ? 148 : 152;            // all 10 fit closer together; BOARD watches their runs
   for (int i = 0; i < n; i++) {
-    const BoardRow *r = &rows[i]; double y = 152 + i * 17;
-    if (r->me) { cv_fill(rgba(255, 210, 31, .12)); cv_rect(12, y - 12, 206, 16); }
+    const BoardRow *r = &rows[i]; double y = y0 + i * gap;
+    if (r->me) { cv_fill(rgba(255, 210, 31, .12)); cv_rect(12, y - gap + 4, 206, gap - 1); }
     snprintf(b, sizeof b, "%d", i + 1); ui_text(b, 18, y, 9, i ? UI_DIM : UI_GOLD, AL_LEFT);
     ui_text(r->name, 32, y, 9, r->me ? UI_GOLD : UI_BONE, AL_LEFT);
     if (r->ds) ui_text("3DS", 36 + cv_text_width(r->name, 9), y - 1, 6, UI_CYAN, AL_LEFT);   // cv_text_width uses ui_text's font
@@ -191,6 +197,7 @@ static void topHud(void) {
     else snprintf(b, sizeof b, "%s: %s", modeLabel(), trackName);
     upper(b, u, sizeof u); ui_kicker(u, 16, 26, UI_CYAN);
     ui_heading("OLD MAN", 16, 70, 38, AL_LEFT); ui_heading("BURN", 16, 108, 38, AL_LEFT);
+    if (screen == UI_BOARD) { topBoardPick(); return; }
     if (screen != UI_ARCHIVE && mode != MODE_OLD && topBoard()) return;
     ui_wrap("Born in 1952 and still riding. The road never stops scrolling, sonny. Ease off the throttle and you slide off "
             "the back. Hold it too long and you shoot off the front. Mind the gout.", 16, 120, 9, UI_BONE, 250);
@@ -202,13 +209,22 @@ static void topHud(void) {
   fmtNum(mapRecord(), b);
   cv_text("TRACK RECORD", 200, 10, 7, rgba(255, 236, 220, .55), AL_CENTER, BL_ALPHA);
   cv_text(b, 200, 26, 14, rgba(255, 236, 220, .55), AL_CENTER, BL_ALPHA);
+  if (simWatch && watch) {                                       // whose run this is, top left
+    snprintf(b, sizeof b, "WATCHING %s%s", watch->name, watch->ds ? " · 3DS" : ""); upper(b, u, sizeof u);
+    cv_font(FONT_MONO); cv_fill(rgba(10, 6, 18, .6)); cv_rect(8, 6, cv_text_width(u, 8) + 12, 15);
+    cv_text(u, 14, 17, 8, UI_CYAN, AL_LEFT, BL_ALPHA);
+  }
 }
 
 static void miniRow(void) {                                      // Settings bottom left, Sound bottom right, as on the web
   ui_button((Box){ 8, 214, 74, 20 }, "Settings", BTN_MINI, 8);
   ui_button((Box){ 238, 214, 74, 20 }, optMusic || optSfx ? "Sound: on" : "Sound: off", BTN_MINI, 8);
 }
-enum { T_RIDE, T_DAILY, T_OLD, T_GARAGE, T_SETTINGS, T_SOUND };
+enum { T_RIDE, T_DAILY, T_OLD, T_BOARD, T_GARAGE, T_SETTINGS, T_SOUND };
+static double fitDisp(const char *s, double size, double w) {     // a Dela Gothic size that fits the label in w
+  cv_font(FONT_DISP); while (size > 7 && cv_text_width(s, size) > w) size -= 0.5;
+  return size;
+}
 static void bottomTitle(void) {
   ui_panel();
   char b[24], line[96];
@@ -216,11 +232,16 @@ static void bottomTitle(void) {
   ui_text(line, 14, 20, 9, UI_GOLD, AL_LEFT);
   ui_button((Box){ 14, 32, 290, 44 }, "RIDE", BTN_RED, 20);
   ui_button((Box){ 14, 88, 290, 34 }, "DAILY DASH · TODAY'S MAP", BTN_CYAN, 11);
-  ui_button((Box){ 14, 134, 139, 30 }, "OLD MAPS", BTN_ALT, 11);
-  ui_button((Box){ 165, 134, 139, 30 }, garageNew ? "GARAGE · NEW" : "GARAGE", BTN_ALT, 11);
+  ui_button((Box){ 14, 134, 92, 30 }, "OLD MAPS", BTN_ALT, fitDisp("OLD MAPS", 11, 84));
+  ui_button((Box){ 113, 134, 92, 30 }, "BOARD", BTN_ALT, 11);
+  const char *gar = garageNew ? "GARAGE · NEW" : "GARAGE";
+  ui_button((Box){ 212, 134, 92, 30 }, gar, BTN_ALT, fitDisp(gar, 11, 84));
   miniRow();
   fmtNum(bestOf(DAILY_BASE + liveDay), b);
-  snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: a new map every day at noon Pacific", b);
+  int tries = sync_daily_tries();
+  if (tries > 0) snprintf(line, sizeof line, "Daily Dash: %d %s left today (shared with Discord)", tries, tries == 1 ? "try" : "tries");
+  else if (tries == 0) snprintf(line, sizeof line, "Daily Dash tries used: rides now are practice");
+  else snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: a new map every day at noon Pacific", b);
   ui_text(line, 14, 184, 8, UI_CYAN, AL_LEFT);
   snprintf(line, sizeof line, "Hold %s to go · %s / %s or drag to steer", keyName(binds[BIND_GO]), keyName(binds[BIND_UP]), keyName(binds[BIND_DOWN]));
   ui_text(line, 14, 198, 8, UI_SUB, AL_LEFT);
@@ -249,6 +270,121 @@ static void bottomArchive(void) {
   }
   if (n > 5) { char pg[32]; snprintf(pg, sizeof pg, "%d / %d", archSel + 1, n); ui_text(pg, 306, 228, 8, UI_DIM, AL_RIGHT); }
   ui_text("A ride · B back", 14, 228, 8, UI_DIM, AL_LEFT);
+}
+/* ---------- the BOARD page: the Discord top 10, weekly or Daily Dash, and watching any run on it ---------- */
+// The runs come from the server (GET /api/3ds/board-replay) as the same notes a 3DS ride uploads, and play back on the
+// map with the rider's look. Today's Daily Dash runs show the day's route, so as in Discord they can only be watched by
+// whoever rode them or once you've used all of today's Daily Dash tries (here or in Discord).
+enum { B_BACK, B_WEEK, B_DAILY, B_ROW };
+static int boardRows(const BoardRow **rows) { int pot; return sync_board(boardTab, boardTab ? liveDay : liveWeek, rows, &pot); }
+static int canWatch(const BoardRow *r) {                          // 1 yes, 0 nothing kept, -1 a Daily Dash run you can't watch yet
+  if (!r->replay[0]) return 0;
+  return boardTab && !r->me && !sync_daily_can_watch() ? -1 : 1;
+}
+static void boardSwitch(int tab) { boardTab = tab; boardSel = 0; boardMsg[0] = 0; enterMode(tab ? MODE_DAILY : MODE_WEEK); }
+static void openBoard(void) { screen = UI_BOARD; boardSwitch(mode == MODE_DAILY); ui_reset_focus(); }
+static void stopLoading(void) { if (watchLoading) { sync_watch_cancel(); watchLoading = false; } }
+static void closeBoard(void) { stopLoading(); screen = UI_TITLE; ui_reset_focus(); }
+static void watchPick(int i) {
+  const BoardRow *rows; int n = boardRows(&rows);
+  if (i < 0 || i >= n) return;
+  boardSel = i;
+  int c = canWatch(&rows[i]);
+  if (c < 0) snprintf(boardMsg, sizeof boardMsg, "Use all of today's Daily Dash tries first, then you can watch it.");
+  else if (!c) snprintf(boardMsg, sizeof boardMsg, "That run was ridden before runs were kept, so there's nothing to watch.");
+  else { sync_watch_fetch(rows[i].replay); watchLoading = true; snprintf(boardMsg, sizeof boardMsg, "Loading %s's run...", rows[i].name); }
+}
+static void startWatch(Watched *w) {
+  watch = w; watchT = 0; watchI = 0; watchDone = false; boardMsg[0] = 0;
+  for (int sl = 0; sl < NSLOT; sl++) { snprintf(ownLook[sl], sizeof ownLook[sl], "%s", look_get(sl)); look_set(sl, w->look[sl]); }
+  reseed(w->seed, w->seed >= DAILY_BASE || w->seed >= V2_FROM); look_apply();   // the board's map (and a fresh run on it)
+  st = ST_PLAY; simWatch = true;
+  sim_watch(0, w->f[0].cam, w->f[0].bx, w->f[0].y, w->f[0].thr, w->f[0].wheelie, 0);
+}
+static void endWatch(bool finished) {
+  if (!simWatch) return;
+  char sc[24]; fmtNum(watch->score, sc);
+  if (finished) snprintf(boardMsg, sizeof boardMsg, "%s's run ended at %s m.", watch->name, sc); else boardMsg[0] = 0;
+  simWatch = false; watchDone = false;
+  for (int sl = 0; sl < NSLOT; sl++) look_set(sl, ownLook[sl]);
+  sync_watch_free(watch); watch = NULL;
+  enterMode(boardTab ? MODE_DAILY : MODE_WEEK); screen = UI_BOARD;
+}
+static void watchStep(double dt) {                                // before update(): the bike where the notes say, eased between them
+  if (!simWatch || st != ST_PLAY) return;
+  const RecFrame *F = watch->f; int n = watch->n;
+  watchT += dt;
+  if (watchT >= F[n - 1].t) {                                     // the end of the notes: the crash
+    const RecFrame *e = &F[n - 1];
+    sim_watch(dt, e->cam, e->bx, e->y, e->thr, e->wheelie, watch->end);
+    g.dist = watch->score;                                        // the score the board has, not one worked out from the notes
+    return;
+  }
+  while (watchI < n - 2 && F[watchI + 1].t <= watchT) watchI++;
+  const RecFrame *a = &F[watchI], *b = &F[watchI + 1];
+  double k = b->t > a->t ? clampd((watchT - a->t) / (b->t - a->t), 0, 1) : 1;
+#define EASE(f) (a->f + (b->f - a->f) * k)
+  sim_watch(dt, EASE(cam), EASE(bx), EASE(y), EASE(thr), EASE(wheelie), 0);
+#undef EASE
+}
+static void bottomBoard(void) {
+  cv_fill(H(150c26)); cv_rect(0, 0, 320, 240);
+  ui_heading("BOARD", 14, 30, 22, AL_LEFT);
+  ui_button((Box){ 236, 10, 70, 24 }, "BACK", BTN_RED, 10);       // B_BACK
+  ui_button((Box){ 112, 12, 56, 20 }, "Weekly", BTN_MINI, 8);     // B_WEEK
+  ui_button((Box){ 172, 12, 58, 20 }, "Daily", BTN_MINI, 8);      // B_DAILY
+  cv_fill(UI_CYAN); cv_rect(boardTab ? 172 : 112, 33, boardTab ? 58 : 56, 2);
+  const BoardRow *rows; int n = boardRows(&rows);
+  if (n < 0) {
+    ui_wrap(!sync_linked() ? "Link this 3DS to Discord (Settings, Discord) to see the top 10 and watch their runs."
+            : "The board shows up once this 3DS has synced with Discord over Wi-Fi.", 14, 56, 9, UI_SUB, 290);
+    ui_text("B back", 14, 228, 8, UI_DIM, AL_LEFT);
+    return;
+  }
+  if (!n) ui_wrap(boardTab ? "Nobody's ridden today's Daily Dash yet." : "Nobody's on this week's board yet.", 14, 56, 9, UI_SUB, 290);
+  if (boardSel >= n) boardSel = n ? n - 1 : 0;
+  char b[32], sc[24];
+  for (int i = 0; i < n; i++) {                                   // B_ROW + i
+    const BoardRow *r = &rows[i]; Box bx = { 10, 40 + i * 17, 300, 16 }; ui_hot(bx);
+    bool f = i == boardSel; double y = bx.y + 12;
+    if (f || r->me) { cv_fill(f ? rgba(34, 230, 216, .10) : rgba(255, 210, 31, .10)); cv_rect(bx.x, bx.y, bx.w, bx.h); }
+    if (f) cv_stroke_rect(bx.x + .5, bx.y + .5, bx.w - 1, bx.h - 1, UI_CYAN, 1);
+    snprintf(b, sizeof b, "%d", i + 1); ui_text(b, 16, y, 9, i ? UI_DIM : UI_GOLD, AL_LEFT);
+    ui_text(r->name, 38, y, 9, r->me ? UI_GOLD : UI_BONE, AL_LEFT);
+    if (r->ds) ui_text("3DS", 42 + cv_text_width(r->name, 9), y - 1, 6, UI_CYAN, AL_LEFT);
+    fmtNum(r->score, sc); snprintf(b, sizeof b, "%s m", sc); ui_text(b, 278, y, 9, UI_GOLD, AL_RIGHT);
+    int c = canWatch(r);
+    if (c) { double tri[6] = { 289, bx.y + 4, 289, bx.y + 12, 297, bx.y + 8 }; cv_fill(c > 0 ? UI_CYAN : 0x4a3a70ffu); cv_poly(tri, 3); }
+  }
+  ui_text(watchLoading ? "Loading... B cancels" : "A or tap ▶ watch · L / R weekly or daily · B back", 14, 228, 8, UI_DIM, AL_LEFT);
+}
+static void topBoardPick(void) {                                  // the highlighted row, and what A does with it
+  const BoardRow *rows; int n = boardRows(&rows), pot = 0;
+  char b[96], sc[24];
+  if (boardTab) snprintf(b, sizeof b, "TODAY'S DAILY DASH BOARD");
+  else if (n < 0) snprintf(b, sizeof b, "THIS WEEK'S BOARD");
+  else { sync_board(false, liveWeek, &rows, &pot); fmtNum(pot, sc); snprintf(b, sizeof b, "THIS WEEK'S BOARD · POT %s", sc); }
+  ui_kicker(b, 16, 132, UI_PINK);
+  if (n > 0) {
+    const BoardRow *r = &rows[boardSel < n ? boardSel : n - 1];
+    snprintf(b, sizeof b, "#%d %s", (int)(r - rows) + 1, r->name); ui_text(b, 16, 154, 13, r->me ? UI_GOLD : UI_BONE, AL_LEFT);
+    fmtNum(r->score, sc); snprintf(b, sizeof b, "%s m%s", sc, r->ds ? " · ridden on a 3DS" : ""); ui_text(b, 16, 172, 10, UI_GOLD, AL_LEFT);
+    int c = canWatch(r);
+    ui_wrap(c > 0 ? "Press A to watch the whole run." : c < 0 ? "Today's Daily Dash runs show the route. Use all of today's tries first, then you can watch."
+            : "Ridden before runs were kept, so there's nothing to watch.", 16, 186, 9, c > 0 ? UI_CYAN : UI_SUB, 200);
+  } else ui_wrap(n < 0 ? "The leaderboards come from Discord." : "No runs yet.", 16, 146, 9, UI_SUB, 200);
+  if (boardMsg[0]) ui_wrap(boardMsg, 16, 234, 9, UI_PINK, 200);
+}
+static void bottomWatch(void) {                                   // while watching: whose run, and how to stop
+  ui_panel();
+  char b[64], sc[24];
+  ui_kicker(boardTab ? "WATCHING A DAILY DASH RUN" : "WATCHING A WEEKLY RUN", 14, 20, UI_CYAN);
+  snprintf(b, sizeof b, "%s%s", watch->name, watch->ds ? " · 3DS" : ""); ui_heading(b, 14, 52, 20, AL_LEFT);
+  fmtNum(st == ST_PLAY ? scoreOf() : g.dist, sc); cv_font(FONT_DISP); cv_text(sc, 160, 110, 30, UI_GOLD, AL_CENTER, BL_ALPHA);
+  fmtNum(watch->score, sc); snprintf(b, sizeof b, "Their run: %s m", sc); ui_text(b, 160, 132, 9, UI_SUB, AL_CENTER);
+  double k = clampd(watchT / watch->f[watch->n - 1].t, 0, 1);
+  cv_fill(0x241838ffu); cv_rect(30, 150, 260, 4); cv_fill(UI_PINK); cv_rect(30, 150, 260 * k, 4);
+  ui_text("B stops watching", 160, 200, 9, UI_DIM, AL_CENTER);
 }
 static void bottomPlay(int touchY) {                              // touchY: where the stylus is, or -1
   ui_panel();
@@ -559,7 +695,7 @@ int main(void) {
   touchPosition lastTouch = { 0 }; bool touching = false;
   const double dt = 1.0 / 60;
   while (aptMainLoop()) {
-    perf_frame(st == ST_PLAY || st == ST_CRASH, audioBufs);
+    perf_frame((st == ST_PLAY || st == ST_CRASH) && !simWatch, audioBufs);
     hidScanInput();
     u32 kd = hidKeysDown(), kh = hidKeysHeld();
     touchPosition tp; hidTouchRead(&tp);
@@ -604,9 +740,20 @@ int main(void) {
         kd &= ~(KEY_DOWN | KEY_UP | KEY_LEFT | KEY_RIGHT);
       }
       if (kd & KEY_A) { if (n) ridePicked(MODE_OLD); kd = 0; }
+    } else if (st == ST_TITLE && screen == UI_BOARD) {
+      const BoardRow *rows; int n = boardRows(&rows);
+      if (kd & KEY_B) { if (watchLoading) { stopLoading(); boardMsg[0] = 0; } else closeBoard(); kd = 0; }
+      if (kd & KEY_SELECT) { stopLoading(); openSettings(); kd = 0; }
+      if (kd & (KEY_L | KEY_R | KEY_LEFT | KEY_RIGHT)) { stopLoading(); boardSwitch(!boardTab); }
+      if (n > 0 && (kd & (KEY_DOWN | KEY_UP))) { boardSel = (int)clampd(boardSel + ((kd & KEY_DOWN) ? 1 : -1), 0, n - 1); }
+      if (kd & KEY_A) watchPick(boardSel);
+      kd &= ~(KEY_DOWN | KEY_UP | KEY_LEFT | KEY_RIGHT | KEY_A);  // the rows move by themselves; buttons are tapped
     } else if (st == ST_TITLE) {
       if (kd & KEY_SELECT) openSettings();
       if (kd & KEY_R) ridePicked(MODE_DAILY);
+    } else if (simWatch) {                                       // watching a board run: B (or START) stops
+      if (kd & (KEY_B | KEY_START)) endWatch(false);
+      kd = 0;
     } else if (st == ST_PLAY) {
       {                                                            // no pause button: runs can't be paused
         in.thr = (kh & binds[BIND_GO]) != 0;
@@ -630,10 +777,19 @@ int main(void) {
       }
     }
     sync_tick(menus || st == ST_OVER);
+    if (watchLoading) {                                            // the board run asked for has come in (or couldn't)
+      Watched *w; const char *msg; int r = sync_watch_poll(&w, &msg);
+      if (r) watchLoading = false;
+      if (r > 0 && st == ST_TITLE && screen == UI_BOARD) startWatch(w);
+      else if (r > 0) sync_watch_free(w);
+      else if (r < 0) snprintf(boardMsg, sizeof boardMsg, "%s", msg);
+    }
     { int w, d; if (st == ST_TITLE && sync_clock(&w, &d) && (w != liveWeek || d != liveDay)) { clockMaps(); enterMode(mode == MODE_OLD ? MODE_WEEK : mode); } }
+    watchStep(dt);
     bool riding = st == ST_PLAY;
     update(dt, &in);
-    if (riding && st == ST_PLAY) { ach_run_tick(dt); look_trail(dt); rec_tick(); }
+    if (riding && st == ST_PLAY) { if (!simWatch) { ach_run_tick(dt); rec_tick(); } look_trail(dt); }
+    if (watchDone) endWatch(true);
     perf_mark(PF_SIM);
     audioBufs = audio_tick(); perf_mark(PF_AUDIO);
 #ifdef SHOWCASE                                                    // test builds: hold the title scene at the garage for the banner
@@ -645,7 +801,7 @@ int main(void) {
     char hint[48]; snprintf(hint, sizeof hint, "HOLD %s, SONNY. KEEP UP.", keyName(binds[BIND_GO]));
     for (char *c = hint; *c; c++) if (*c >= 'a' && *c <= 'z') *c -= 32;
     draw_best_m = bestOf(curSeed);
-    render_game(st == ST_PLAY && g.t < 5 ? hint : NULL);
+    render_game(st == ST_PLAY && g.t < 5 && !simWatch ? hint : NULL);
     gfx_top_begin();
     topHud();
     gfx_bottom_begin(H(0a0612));
@@ -655,7 +811,9 @@ int main(void) {
     else if (shown == UI_ARCHIVE) bottomArchive();
     else if (shown == UI_GARAGE) bottomGarage();
     else if (shown == UI_CODE) bottomCode();
+    else if (shown == UI_BOARD) bottomBoard();
     else if (shown == UI_TITLE) bottomTitle();
+    else if (simWatch) bottomWatch();
     else if (st == ST_OVER) bottomOver();
     else bottomPlay(touchY);
     if (menus) ui_input(kd, tp.px, tp.py, (kd & KEY_TOUCH) != 0);
@@ -681,11 +839,16 @@ int main(void) {
         if (p == T_RIDE) ridePicked(MODE_WEEK);
         else if (p == T_DAILY) ridePicked(MODE_DAILY);
         else if (p == T_OLD) { screen = UI_ARCHIVE; archSel = 0; archTop = 0; ui_reset_focus(); if (nOldWeeks()) { oldWeek = archWeek(0); enterMode(MODE_OLD); } }
+        else if (p == T_BOARD) openBoard();
         else if (p == T_GARAGE) openGarage();
         else if (p == T_SETTINGS) openSettings();
         else if (p == T_SOUND) toggleSound();
       } else if (shown == UI_CODE) {
         if (p == 0) { screen = backTo; ui_reset_focus(); }
+      } else if (shown == UI_BOARD) {
+        if (p == B_BACK) closeBoard();
+        else if (p == B_WEEK || p == B_DAILY) { stopLoading(); boardSwitch(p == B_DAILY); }
+        else watchPick(p - B_ROW);
       } else if (shown == UI_GARAGE) {
         if (p == G_BACK) { screen = UI_TITLE; ui_reset_focus(); }
         else if (p == G_LOOK || p == G_ACH) { garTab = p == G_ACH; garSel = garTop = 0; }
