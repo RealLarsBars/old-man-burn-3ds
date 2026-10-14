@@ -238,7 +238,10 @@ static void bottomTitle(void) {
   ui_button((Box){ 212, 134, 92, 30 }, gar, BTN_ALT, fitDisp(gar, 11, 84));
   miniRow();
   fmtNum(bestOf(DAILY_BASE + liveDay), b);
-  snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: a new map every day at noon Pacific", b);
+  int tries = sync_daily_tries();
+  if (tries > 0) snprintf(line, sizeof line, "Daily Dash: %d %s left today (shared with Discord)", tries, tries == 1 ? "try" : "tries");
+  else if (tries == 0) snprintf(line, sizeof line, "Daily Dash tries used: rides now are practice");
+  else snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: a new map every day at noon Pacific", b);
   ui_text(line, 14, 184, 8, UI_CYAN, AL_LEFT);
   snprintf(line, sizeof line, "Hold %s to go · %s / %s or drag to steer", keyName(binds[BIND_GO]), keyName(binds[BIND_UP]), keyName(binds[BIND_DOWN]));
   ui_text(line, 14, 198, 8, UI_SUB, AL_LEFT);
@@ -271,7 +274,7 @@ static void bottomArchive(void) {
 /* ---------- the BOARD page: the Discord top 10, weekly or Daily Dash, and watching any run on it ---------- */
 // The runs come from the server (GET /api/3ds/board-replay) as the same notes a 3DS ride uploads, and play back on the
 // map with the rider's look. Today's Daily Dash runs show the day's route, so as in Discord they can only be watched by
-// whoever rode them or once you've used all of today's Daily Dash tries in Discord.
+// whoever rode them or once you've used all of today's Daily Dash tries (here or in Discord).
 enum { B_BACK, B_WEEK, B_DAILY, B_ROW };
 static int boardRows(const BoardRow **rows) { int pot; return sync_board(boardTab, boardTab ? liveDay : liveWeek, rows, &pot); }
 static int canWatch(const BoardRow *r) {                          // 1 yes, 0 nothing kept, -1 a Daily Dash run you can't watch yet
@@ -287,7 +290,7 @@ static void watchPick(int i) {
   if (i < 0 || i >= n) return;
   boardSel = i;
   int c = canWatch(&rows[i]);
-  if (c < 0) snprintf(boardMsg, sizeof boardMsg, "Use all of today's Daily Dash tries in Discord first, then you can watch it.");
+  if (c < 0) snprintf(boardMsg, sizeof boardMsg, "Use all of today's Daily Dash tries first, then you can watch it.");
   else if (!c) snprintf(boardMsg, sizeof boardMsg, "That run was ridden before runs were kept, so there's nothing to watch.");
   else { sync_watch_fetch(rows[i].replay); watchLoading = true; snprintf(boardMsg, sizeof boardMsg, "Loading %s's run...", rows[i].name); }
 }
@@ -338,7 +341,7 @@ static void bottomBoard(void) {
     ui_text("B back", 14, 228, 8, UI_DIM, AL_LEFT);
     return;
   }
-  if (!n) ui_wrap(boardTab ? "Nobody's ridden today's Daily Dash in Discord yet." : "Nobody's on this week's board yet.", 14, 56, 9, UI_SUB, 290);
+  if (!n) ui_wrap(boardTab ? "Nobody's ridden today's Daily Dash yet." : "Nobody's on this week's board yet.", 14, 56, 9, UI_SUB, 290);
   if (boardSel >= n) boardSel = n ? n - 1 : 0;
   char b[32], sc[24];
   for (int i = 0; i < n; i++) {                                   // B_ROW + i
@@ -367,7 +370,7 @@ static void topBoardPick(void) {                                  // the highlig
     snprintf(b, sizeof b, "#%d %s", (int)(r - rows) + 1, r->name); ui_text(b, 16, 154, 13, r->me ? UI_GOLD : UI_BONE, AL_LEFT);
     fmtNum(r->score, sc); snprintf(b, sizeof b, "%s m%s", sc, r->ds ? " · ridden on a 3DS" : ""); ui_text(b, 16, 172, 10, UI_GOLD, AL_LEFT);
     int c = canWatch(r);
-    ui_wrap(c > 0 ? "Press A to watch the whole run." : c < 0 ? "Today's Daily Dash runs show the route. Use all your tries in Discord today, then you can watch."
+    ui_wrap(c > 0 ? "Press A to watch the whole run." : c < 0 ? "Today's Daily Dash runs show the route. Use all of today's tries first, then you can watch."
             : "Ridden before runs were kept, so there's nothing to watch.", 16, 186, 9, c > 0 ? UI_CYAN : UI_SUB, 200);
   } else ui_wrap(n < 0 ? "The leaderboards come from Discord." : "No runs yet.", 16, 146, 9, UI_SUB, 200);
   if (boardMsg[0]) ui_wrap(boardMsg, 16, 234, 9, UI_PINK, 200);

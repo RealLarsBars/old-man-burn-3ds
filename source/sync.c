@@ -76,7 +76,7 @@ static void applyProfile(json_t *p) {
   }
 }
 /* ---------- the leaderboards from Discord (kept on the SD card, so they still show offline) ---------- */
-static BoardRow boards[2][BOARD_N]; static int nBoard[2] = { -1, -1 }, boardWeek[2], sPot; static char myId[24]; static bool dailyCanWatch;
+static BoardRow boards[2][BOARD_N]; static int nBoard[2] = { -1, -1 }, boardWeek[2], sPot; static char myId[24]; static bool dailyCanWatch; static int dailyTries = -1;
 static void readBoard(int k, json_t *a, int id) {
   if (!json_is_array(a)) return;
   size_t i; json_t *v; nBoard[k] = 0; boardWeek[k] = id;
@@ -100,11 +100,12 @@ static void applyBoards(json_t *j) {
   readBoard(1, json_object_get(j, "daily_board"), json_integer_value(d));
   sPot = json_integer_value(json_object_get(j, "pot"));
   dailyCanWatch = json_is_true(json_object_get(j, "daily_can_watch"));
+  json_t *dt = json_object_get(j, "daily_tries_left"); dailyTries = json_is_integer(dt) ? (int)json_integer_value(dt) : -1;
 }
 static void saveBoards(json_t *j) {
   json_t *b = json_object();
-  const char *keys[] = { "id", "week", "day", "board", "daily_board", "pot", "daily_can_watch" };
-  for (int i = 0; i < 7; i++) { json_t *v = json_object_get(j, keys[i]); if (v) json_object_set(b, keys[i], v); }
+  const char *keys[] = { "id", "week", "day", "board", "daily_board", "pot", "daily_can_watch", "daily_tries_left" };
+  for (int i = 0; i < 8; i++) { json_t *v = json_object_get(j, keys[i]); if (v) json_object_set(b, keys[i], v); }
   json_dump_file(b, BOARD_FILE, JSON_COMPACT); json_decref(b);
 }
 static void loadBoards(void) {
@@ -117,6 +118,7 @@ int sync_board(bool daily, int id, const BoardRow **rows, int *pot) {
   *rows = boards[k]; *pot = sPot; return nBoard[k];
 }
 bool sync_daily_can_watch(void) { return dailyCanWatch; }
+int sync_daily_tries(void) { return linked && nBoard[1] >= 0 && boardWeek[1] == sDay ? dailyTries : -1; }
 
 /* ---------- watching a run from the board: GET /api/3ds/board-replay/<id>, notes 10 a second like our own ---------- */
 static int watchState; static Watched *watched; static char watchMsg[96], watchId[12];   // 0 nothing asked, 1 loading, 2 in, -1 failed
@@ -234,7 +236,7 @@ void sync_link_prompt(void) {
 void sync_unlink(void) {
   linked = false; token[0] = name[0] = 0; haveClock = false;
   memset(ach_server, 0, sizeof ach_server); saveLink(); setStatus("Not linked to Discord");
-  nBoard[0] = nBoard[1] = -1; myId[0] = 0; dailyCanWatch = false; remove(BOARD_FILE);
+  nBoard[0] = nBoard[1] = -1; myId[0] = 0; dailyCanWatch = false; dailyTries = -1; remove(BOARD_FILE);
 }
 void sync_loadout_changed(void) {
   if (!linked) return;
@@ -266,6 +268,14 @@ void sync_tick(bool menus) {
       sending = false;
       if (ok) {
         remove(sending_file); setStatus("Sent to Discord: it's in 3DS RIDES");
+        json_t *dd = json_object_get(j, "daily");                 // a Daily Dash ride that used one of today's tries
+        if (json_is_object(dd)) {
+          dailyTries = (int)json_integer_value(json_object_get(dd, "tries_left"));
+          if (dailyTries <= 0) dailyCanWatch = true;
+          char m[64]; snprintf(m, sizeof m, json_is_true(json_object_get(dd, "accepted")) ? "On today's Daily Dash board · %d %s left" : "Sent · %d %s left",
+                               dailyTries, dailyTries == 1 ? "try" : "tries");
+          setStatus(m);
+        }
         lastState = 0;                                             // fetch the board again: this ride may be on it
         json_t *p = json_object_get(j, "profile"); if (json_is_object(p)) applyProfile(p);
         sendOutbox();

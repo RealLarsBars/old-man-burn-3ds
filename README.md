@@ -63,7 +63,10 @@ type its 6-digit code on the 3DS. After that, whenever the console has Wi-Fi:
 
 - the maps follow the server's clock (no need for the clock offset),
 - the profile is shared: achievements unlocked on Discord unlock their items here too, and the loadout follows you,
-- weekly runs go on the weekly board with a 3DS tag (they never count for the pot or the runner-up refund),
+- weekly runs go on the weekly board with a 3DS tag (on the free weeklies they count for the prizes),
+- Daily Dash runs on today's map count like Discord ones: each uses one of the day's 3 tries (shared with Discord) and
+  goes on the Daily Dash board with a 3DS tag, for the prize and the streak. Once the tries are used, or for a ride
+  that waited offline past the day's end, it's practice. The title screen says how many tries are left,
 - every run's replay uploads and shows up under 3DS RIDES in the Discord game (Daily Dash ones never get posted to chat).
 - the title screen shows the Discord leaderboard (the same top 10 as the Discord boards, with this week's pot, or
   today's Daily Dash board after a Daily Dash ride). It refreshes every five minutes on the menus and after each upload,
@@ -71,7 +74,7 @@ type its 6-digit code on the 3DS. After that, whenever the console has Wi-Fi:
 - BOARD on the title screen shows the whole top 10, weekly or Daily Dash (L / R or the tabs switch). Pick a row with
   up / down and press A (or tap it) to watch that run: it plays back on the map with the rider's look, and B stops it.
   The runs come from the server (`GET /api/3ds/board-replay/<id>`, thinned to 10 notes a second). As in Discord, today's
-  Daily Dash runs can only be watched once you've used all of today's Daily Dash tries in Discord (your own any time),
+  Daily Dash runs can only be watched once you've used all of today's Daily Dash tries (your own any time),
   and runs ridden before the board kept them have nothing to watch.
 
 Runs wait in `sdmc:/3ds/oldmanburn/outbox/` until they're sent. The link is kept in `sdmc:/3ds/oldmanburn/link.txt`
