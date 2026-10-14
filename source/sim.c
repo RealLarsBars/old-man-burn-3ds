@@ -406,6 +406,22 @@ static void stepParts(Part *parts, int *n, double dt) {
   *n = j;
 }
 
+bool simWatch;
+void sim_watch(double dt, double cam, double bx, double y, double thr, double wheelie, int end) {
+  if (st != ST_PLAY) return;
+  double pbx = g.bx, py = g.y;
+  g.cam = cam; g.bx = bx; g.y = y; g.thr = thr; g.wheelie = wheelie;
+  if (end) { crash(end); return; }                                 // they crashed right here
+  double P = pace(g.cam / M_PX); g.P = P;
+  if (dt > 0) { g.v = clampd(P + (g.bx - pbx) / dt, 0.2 * P, 2 * P); g.vyD += ((g.y - py) / dt - g.vyD) * fmin(1, dt * 18); }
+  double wx = g.cam + g.bx;
+  roadAt(wx);
+  bool onRoad = !gapAt(wx) && fabs(g.y - RC) <= RW / 2;
+  g.onRoad = onRoad;
+  if (!onRoad && g.v > 0.15 * P) { if (V2) dirtCloud(dt); else if (frand() < 0.8) puff(1); }
+  if (g.wheelie > 0.5 && frand() < 0.6) puff(0);
+}
+
 void update(double dt, const Input *in) {
   g.t += dt; T += dt;
   if (st == ST_TITLE) {
@@ -414,6 +430,8 @@ void update(double dt, const Input *in) {
     g.y += (ty - g.y) * fmin(1, dt * 4); g.vyD = (g.y - prev) / dt; g.onRoad = true;
     bool want = sin(T * 0.9) > 0.35; g.thr += ((want ? 1 : 0) - g.thr) * fmin(1, dt * 6);
     g.wheelie += ((want ? 1 : 0) - g.wheelie) * fmin(1, dt * 6);
+  } else if (st == ST_PLAY && simWatch) {
+    // sim_watch() moved the bike
   } else if (st == ST_PLAY) {
     double m = g.cam / M_PX, P = pace(m); g.P = P;
     g.cam += P * dt;

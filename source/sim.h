@@ -99,6 +99,10 @@ typedef struct { bool thr; double steer; double drag; } Input;   // steer -1..1 
 void update(double dt, const Input *in);
 void end_run_now(int cause);
 extern bool simGod;         // test builds only: ride through everything
+// Watching a recorded run: update() leaves the bike alone and sim_watch() puts it where the notes say (eased between
+// them by the caller), with the dust and smoke a rider would kick up. end: CAUSE_* to crash right here, or 0.
+extern bool simWatch;
+void sim_watch(double dt, double cam, double bx, double y, double thr, double wheelie, int end);
 // called by update(); the front end makes the noise and the pictures
 void on_crash(void);
 void on_over(void);

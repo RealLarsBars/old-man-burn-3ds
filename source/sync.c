@@ -16,7 +16,7 @@
 #define LINK_FILE DIR_ "/link.txt"
 #define OUTBOX DIR_ "/outbox"
 #define BOARD_FILE DIR_ "/board.json"
-enum { K_STATE = 1, K_LINK, K_RUN, K_LOADOUT };
+enum { K_STATE = 1, K_LINK, K_RUN, K_LOADOUT, K_WATCH };
 static char token[80], name[64], auth[96], status[64] = "Not linked to Discord";
 static bool linked, haveClock, loadoutDirty, sending;
 static int sWeek, sDay; static u64 lastState, nextRetry; static char sending_file[128];
@@ -76,18 +76,20 @@ static void applyProfile(json_t *p) {
   }
 }
 /* ---------- the leaderboards from Discord (kept on the SD card, so they still show offline) ---------- */
-static BoardRow boards[2][5]; static int nBoard[2] = { -1, -1 }, boardWeek[2], sPot; static char myId[24];
+static BoardRow boards[2][BOARD_N]; static int nBoard[2] = { -1, -1 }, boardWeek[2], sPot; static char myId[24]; static bool dailyCanWatch;
 static void readBoard(int k, json_t *a, int id) {
   if (!json_is_array(a)) return;
   size_t i; json_t *v; nBoard[k] = 0; boardWeek[k] = id;
   json_array_foreach(a, i, v) {
-    if (nBoard[k] >= 5) break;
+    if (nBoard[k] >= BOARD_N) break;
     BoardRow *r = &boards[k][nBoard[k]++];
     const char *nm = json_string_value(json_object_get(v, "name")), *src = json_string_value(json_object_get(v, "src")),
                *uid = json_string_value(json_object_get(v, "user_id"));
     snprintf(r->name, sizeof r->name, "%.12s", nm ? nm : "Rider");   // 12 letters, like the Discord board
     r->score = json_integer_value(json_object_get(v, "score"));
     r->ds = src && !strcmp(src, "3ds"); r->me = uid && myId[0] && !strcmp(uid, myId);
+    const char *rp = json_string_value(json_object_get(v, "replay"));
+    snprintf(r->replay, sizeof r->replay, "%s", rp && strlen(rp) < sizeof r->replay ? rp : "");
   }
 }
 static void applyBoards(json_t *j) {
@@ -97,11 +99,12 @@ static void applyBoards(json_t *j) {
   readBoard(0, json_object_get(j, "board"), json_integer_value(w));
   readBoard(1, json_object_get(j, "daily_board"), json_integer_value(d));
   sPot = json_integer_value(json_object_get(j, "pot"));
+  dailyCanWatch = json_is_true(json_object_get(j, "daily_can_watch"));
 }
 static void saveBoards(json_t *j) {
   json_t *b = json_object();
-  const char *keys[] = { "id", "week", "day", "board", "daily_board", "pot" };
-  for (int i = 0; i < 6; i++) { json_t *v = json_object_get(j, keys[i]); if (v) json_object_set(b, keys[i], v); }
+  const char *keys[] = { "id", "week", "day", "board", "daily_board", "pot", "daily_can_watch" };
+  for (int i = 0; i < 7; i++) { json_t *v = json_object_get(j, keys[i]); if (v) json_object_set(b, keys[i], v); }
   json_dump_file(b, BOARD_FILE, JSON_COMPACT); json_decref(b);
 }
 static void loadBoards(void) {
@@ -112,6 +115,54 @@ int sync_board(bool daily, int id, const BoardRow **rows, int *pot) {
   int k = daily;
   if (!linked || nBoard[k] < 0 || boardWeek[k] != id) return -1;   // none yet, or a saved one from a week that's over
   *rows = boards[k]; *pot = sPot; return nBoard[k];
+}
+bool sync_daily_can_watch(void) { return dailyCanWatch; }
+
+/* ---------- watching a run from the board: GET /api/3ds/board-replay/<id>, notes 10 a second like our own ---------- */
+static int watchState; static Watched *watched; static char watchMsg[96], watchId[12];   // 0 nothing asked, 1 loading, 2 in, -1 failed
+void sync_watch_free(Watched *w) { if (w) { free(w->f); free(w); } }
+void sync_watch_cancel(void) { if (watchState == 2) sync_watch_free(watched); watched = NULL; watchState = 0; }
+void sync_watch_fetch(const char *id) {
+  sync_watch_cancel();
+  char path[64]; snprintf(path, sizeof path, "/api/3ds/board-replay/%.11s", id);
+  snprintf(watchId, sizeof watchId, "%.11s", id);
+  if (linked && net_send(K_WATCH, "GET", path, NULL, auth)) watchState = 1;
+  else { watchState = -1; snprintf(watchMsg, sizeof watchMsg, "No connection. Is Wi-Fi on?"); }
+}
+int sync_watch_poll(Watched **out, const char **msg) {
+  int s = watchState;
+  if (s == 2) { *out = watched; watched = NULL; watchState = 0; return 1; }
+  if (s == -1) { *msg = watchMsg; watchState = 0; return -1; }
+  return 0;
+}
+static const char *ENDS[4] = { "", "behind", "ahead", "rail" };
+static Watched *readWatched(json_t *j) {
+  json_t *fr = json_object_get(j, "frames");
+  size_t n = json_array_size(fr); if (n < 2) return NULL;
+  Watched *w = calloc(1, sizeof *w); if (!w) return NULL;
+  w->f = malloc(n * sizeof *w->f); if (!w->f) { free(w); return NULL; }
+  w->seed = json_integer_value(json_object_get(j, "seed")); w->score = json_integer_value(json_object_get(j, "score"));
+  const char *nm = json_string_value(json_object_get(j, "name")), *src = json_string_value(json_object_get(j, "src")),
+             *end = json_string_value(json_object_get(j, "end"));
+  snprintf(w->name, sizeof w->name, "%.12s", nm ? nm : "Somebody");
+  w->ds = src && !strcmp(src, "3ds");
+  w->end = 3; for (int i = 1; i < 4; i++) if (end && !strcmp(end, ENDS[i])) w->end = i;   // CAUSE_*; no end: the rail, as on the web
+  json_t *lo = json_object_get(j, "look");
+  for (int s = 0; s < NSLOT; s++) {
+    const char *id = json_string_value(json_object_get(lo, SLOT_IDS[s]));
+    snprintf(w->look[s], sizeof w->look[s], "%s", id && look_known(s, id) ? id : "");
+  }
+  size_t i; json_t *v; double t0 = 0;
+  json_array_foreach(fr, i, v) {                                  // time from 0 and only ever forward, like the web's frames3ds
+    if (json_array_size(v) != 6) continue;
+    float x[6]; for (int k = 0; k < 6; k++) x[k] = (float)json_number_value(json_array_get(v, k));
+    if (!w->n) t0 = x[0];
+    x[0] -= t0;
+    if (w->n && x[0] <= w->f[w->n - 1].t) continue;
+    w->f[w->n++] = (RecFrame){ x[0], x[1], x[2], x[3], x[4], x[5] };
+  }
+  if (w->n < 2) { sync_watch_free(w); return NULL; }
+  return w;
 }
 
 static void applyState(json_t *j) {
@@ -142,7 +193,6 @@ static void sendOutbox(void) {
   if (net_send(K_RUN, "POST", "/api/3ds/run", body, auth)) { sending = true; snprintf(sending_file, sizeof sending_file, "%s", path); setStatus("Uploading your ride..."); }
   free(body);
 }
-static const char *ENDS[4] = { "", "behind", "ahead", "rail" };
 void sync_run(void) {
   if (!linked) return;
   json_t *j = json_object();
@@ -184,7 +234,7 @@ void sync_link_prompt(void) {
 void sync_unlink(void) {
   linked = false; token[0] = name[0] = 0; haveClock = false;
   memset(ach_server, 0, sizeof ach_server); saveLink(); setStatus("Not linked to Discord");
-  nBoard[0] = nBoard[1] = -1; myId[0] = 0; remove(BOARD_FILE);
+  nBoard[0] = nBoard[1] = -1; myId[0] = 0; dailyCanWatch = false; remove(BOARD_FILE);
 }
 void sync_loadout_changed(void) {
   if (!linked) return;
@@ -222,6 +272,17 @@ void sync_tick(bool menus) {
       } else if (r.status >= 400 && r.status < 500 && r.status != 401 && r.status != 429) {   // the server won't take it: don't retry forever
         remove(sending_file); setStatus("Discord didn't take that ride");
       } else { nextRetry = osGetTime() + 60000; setStatus("Offline: rides wait on the SD card"); }
+    } else if (r.kind == K_WATCH) {
+      const char *got = json_string_value(json_object_get(j, "id"));
+      if (watchState == 1 && (!ok || (got && !strcmp(got, watchId)))) {   // still the run wanted (not cancelled, not an older ask)
+        Watched *w = ok && j ? readWatched(j) : NULL;
+        if (w) { watched = w; watchState = 2; }
+        else {
+          watchState = -1;
+          snprintf(watchMsg, sizeof watchMsg, "%s", ok ? "That run has nothing to watch." : r.status == 0 ? "No connection. Is Wi-Fi on?"
+                   : detail(j, "Couldn't load that run."));
+        }
+      }
     } else if (r.kind == K_LOADOUT) {
       if (ok) loadoutDirty = false;
     }
