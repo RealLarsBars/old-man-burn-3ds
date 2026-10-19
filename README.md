@@ -2,7 +2,7 @@
 
 A homebrew port of [Old Man Burn](https://github.com/RealLarsBars/old-man-burn). It rides this week's map, today's
 Daily Dash and every old weekly map, built from the same seeds with the same road rules, so the roads are the ones
-Discord is riding. It plays fully offline, with the garage and achievements kept on the SD card; linked to Discord over
+Discord is riding. It plays offline (all but the Daily Dash), with the garage and achievements kept on the SD card; linked to Discord over
 Wi-Fi it shares your profile, puts weekly runs on the board and uploads replays. There are no coins or pot.
 
 - The top screen is the game. It's drawn at the web game's 480x270 and scaled to fit the 400x240 screen.
@@ -64,9 +64,10 @@ type its 6-digit code on the 3DS. After that, whenever the console has Wi-Fi:
 - the maps follow the server's clock (no need for the clock offset),
 - the profile is shared: achievements unlocked on Discord unlock their items here too, and the loadout follows you,
 - weekly runs go on the weekly board with a 3DS tag (on the free weeklies they count for the prizes),
-- Daily Dash runs on today's map count like Discord ones: each uses one of the day's 3 tries (shared with Discord) and
-  goes on the Daily Dash board with a 3DS tag, for the prize and the streak. Once the tries are used, or for a ride
-  that waited offline past the day's end, it's practice. The title screen says how many tries are left,
+- the Daily Dash can be ridden: it needs this link and Wi-Fi, because starting one asks the server for one of the
+  day's 3 tries (shared with Discord) first, as Discord's Start does. With no Wi-Fi, no link or no tries left it says
+  so and doesn't start. Each run goes on the Daily Dash board with a 3DS tag, for the prize and the streak (a ride
+  that only uploads after the day has ended is practice). The title screen says how many tries are left,
 - every run's replay uploads and shows up under 3DS RIDES in the Discord game (Daily Dash ones never get posted to chat).
 - the title screen shows the Discord leaderboard (the same top 10 as the Discord boards, with this week's pot, or
   today's Daily Dash board after a Daily Dash ride). It refreshes every five minutes on the menus and after each upload,

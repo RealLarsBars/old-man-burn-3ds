@@ -35,6 +35,7 @@ static int boardTab, boardSel;                                   // the BOARD pa
 static bool watchLoading, watchDone;                             // asked the server for a board run; the one being watched ended
 static Watched *watch; static double watchT; static int watchI;  // the run being watched, how far in, its note before watchT
 static char boardMsg[96], ownLook[NSLOT][24];                    // a line for the BOARD page; your look while someone else's is on
+static bool dailyAsking; static char dailyNote[96]; static u64 dailyNoteAt;   // waiting on the server for a Daily Dash try; why not
 
 /* ---------- controls: go, up and down can be put on any button; the touch screen and Circle Pad always steer ---------- */
 typedef struct { u32 key; const char *name; } KeyName;
@@ -225,6 +226,12 @@ static double fitDisp(const char *s, double size, double w) {     // a Dela Goth
   cv_font(FONT_DISP); while (size > 7 && cv_text_width(s, size) > w) size -= 0.5;
   return size;
 }
+static bool dailyLine(char *out, int n) {                         // waiting for a Daily Dash try, or why there wasn't one
+  if (dailyAsking) snprintf(out, n, "Checking your Daily Dash tries... B cancels");
+  else if (dailyNote[0] && osGetTime() - dailyNoteAt < 6000) snprintf(out, n, "%s", dailyNote);
+  else return false;
+  return true;
+}
 static void bottomTitle(void) {
   ui_panel();
   char b[24], line[96];
@@ -239,9 +246,11 @@ static void bottomTitle(void) {
   miniRow();
   fmtNum(bestOf(DAILY_BASE + liveDay), b);
   int tries = sync_daily_tries();
-  if (tries > 0) snprintf(line, sizeof line, "Daily Dash: %d %s left today (shared with Discord)", tries, tries == 1 ? "try" : "tries");
-  else if (tries == 0) snprintf(line, sizeof line, "Daily Dash tries used: rides now are practice");
-  else snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: a new map every day at noon Pacific", b);
+  if (dailyLine(line, sizeof line)) {}
+  else if (tries > 0) snprintf(line, sizeof line, "Daily Dash: %d %s left today (shared with Discord)", tries, tries == 1 ? "try" : "tries");
+  else if (tries == 0) snprintf(line, sizeof line, "Daily Dash: no tries left today. New map at noon Pacific");
+  else if (!sync_linked()) snprintf(line, sizeof line, "Daily Dash: link to Discord in Settings to ride it");
+  else snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: needs Wi-Fi to check your tries", b);
   ui_text(line, 14, 184, 8, UI_CYAN, AL_LEFT);
   snprintf(line, sizeof line, "Hold %s to go · %s / %s or drag to steer", keyName(binds[BIND_GO]), keyName(binds[BIND_UP]), keyName(binds[BIND_DOWN]));
   ui_text(line, 14, 198, 8, UI_SUB, AL_LEFT);
@@ -423,7 +432,8 @@ static void bottomOver(void) {
     ui_button((Box){ 14, 142, 186, 38 }, "ONE MORE LAP", BTN_RED, 13);
     ui_button((Box){ 212, 142, 94, 38 }, "MENU", BTN_ALT, 12);
     ui_button((Box){ 212, 188, 94, 18 }, "Replay code", BTN_MINI, 8);
-    if (sync_linked()) ui_text(sync_status(), 14, 196, 8, UI_CYAN, AL_LEFT);
+    if (dailyLine(line, sizeof line)) ui_text(line, 14, 196, 8, UI_CYAN, AL_LEFT);
+    else if (sync_linked()) ui_text(sync_status(), 14, 196, 8, UI_CYAN, AL_LEFT);
     snprintf(line, sizeof line, "A or %s ride again · B menu", keyName(binds[BIND_GO]));
     ui_text(line, 14, 228, 8, UI_DIM, AL_LEFT);
   }
@@ -670,6 +680,17 @@ static void bottomSettings(void) {
 static void openSettings(void) { backTo = screen; screen = UI_SETTINGS; capturing = -1; ui_reset_focus(); }
 static void toggleSound(void) { bool on = !(optMusic || optSfx); optMusic = optSfx = on; audio_set(optMusic, optSfx); save(); }
 static void ridePicked(int m) { enterMode(m); startRun(); }
+// The Daily Dash only starts once the server has taken one of today's tries (shared with Discord), so it needs Wi-Fi.
+// The answer is picked up on the menus, never mid-ride.
+static void dailyPicked(void) { dailyNote[0] = 0; dailyAsking = true; sync_daily_start(); }
+static void rideAgain(void) { if (mode == MODE_DAILY) dailyPicked(); else startRun(); }
+static void dailyAnswer(void) {
+  const char *msg; int r = sync_daily_poll(&msg);
+  if (!r) return;
+  dailyAsking = false;
+  if (r > 0) { clockMaps(); screen = UI_TITLE; ridePicked(MODE_DAILY); }
+  else { snprintf(dailyNote, sizeof dailyNote, "%s", msg); dailyNoteAt = osGetTime(); }
+}
 static void settingsAdjust(int row, int d) {
   if (row == S_MUSIC) optMusic = !optMusic;
   else if (row == S_SFX) optSfx = !optSfx;
@@ -748,9 +769,12 @@ int main(void) {
       if (n > 0 && (kd & (KEY_DOWN | KEY_UP))) { boardSel = (int)clampd(boardSel + ((kd & KEY_DOWN) ? 1 : -1), 0, n - 1); }
       if (kd & KEY_A) watchPick(boardSel);
       kd &= ~(KEY_DOWN | KEY_UP | KEY_LEFT | KEY_RIGHT | KEY_A);  // the rows move by themselves; buttons are tapped
+    } else if (st == ST_TITLE && dailyAsking) {                   // waiting on the Daily Dash try: B stops waiting
+      if (kd & KEY_B) { sync_daily_cancel(); dailyAsking = false; }
+      kd = 0;
     } else if (st == ST_TITLE) {
       if (kd & KEY_SELECT) openSettings();
-      if (kd & KEY_R) ridePicked(MODE_DAILY);
+      if (kd & KEY_R) dailyPicked();
     } else if (simWatch) {                                       // watching a board run: B (or START) stops
       if (kd & (KEY_B | KEY_START)) endWatch(false);
       kd = 0;
@@ -770,14 +794,18 @@ int main(void) {
         }
       }
     } else if (st == ST_OVER) {
-      if (T - overAt > 0.6) {
-        if (kd & binds[BIND_GO] && !(binds[BIND_GO] & (KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT | KEY_A))) startRun();
+      if (T - overAt > 0.6 && dailyAsking) {
+        if (kd & KEY_B) { sync_daily_cancel(); dailyAsking = false; }
+        kd = 0; menus = true;
+      } else if (T - overAt > 0.6) {
+        if (kd & binds[BIND_GO] && !(binds[BIND_GO] & (KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT | KEY_A))) rideAgain();
         else if (kd & KEY_B) { enterMode(mode == MODE_OLD ? MODE_WEEK : mode); screen = UI_TITLE; ui_reset_focus(); }
         menus = true;
       }
     }
     perf_mark(PF_SIM);
     sync_tick(menus || st == ST_OVER); perf_mark(PF_SYNC);
+    if (dailyAsking) dailyAnswer();
     if (watchLoading) {                                            // the board run asked for has come in (or couldn't)
       Watched *w; const char *msg; int r = sync_watch_poll(&w, &msg);
       if (r) watchLoading = false;
@@ -825,6 +853,7 @@ int main(void) {
     gfx_frame_end(); perf_mark(PF_DRAW);
 
     int p = menus ? ui_pressed() : -1;                           // the buttons act after the frame they were drawn in
+    if (dailyAsking) p = -1;
     if (p >= 0) {
       if (shown == UI_SETTINGS) {
         int row = -1; for (int i = 0; i < NS; i++) if (setHot[i] == p) row = i;
@@ -838,7 +867,7 @@ int main(void) {
         else if (row == S_DISCORD) { if (!sync_linked()) sync_link_prompt(); else if (unlinkAsk) { sync_unlink(); unlinkAsk = false; } else unlinkAsk = true; }
       } else if (shown == UI_TITLE) {
         if (p == T_RIDE) ridePicked(MODE_WEEK);
-        else if (p == T_DAILY) ridePicked(MODE_DAILY);
+        else if (p == T_DAILY) dailyPicked();
         else if (p == T_OLD) { screen = UI_ARCHIVE; archSel = 0; archTop = 0; ui_reset_focus(); if (nOldWeeks()) { oldWeek = archWeek(0); enterMode(MODE_OLD); } }
         else if (p == T_BOARD) openBoard();
         else if (p == T_GARAGE) openGarage();
@@ -862,7 +891,7 @@ int main(void) {
         else { int i = archTop + (p - 1); if (i < nOldWeeks()) { archSel = i; oldWeek = archWeek(i); ridePicked(MODE_OLD); } }
       } else if (st == ST_OVER) {
         if (p == O_CODE) openCode();
-        else if (p == O_AGAIN) startRun(); else if (p == O_MENU) { enterMode(mode == MODE_OLD ? MODE_WEEK : mode); screen = UI_TITLE; ui_reset_focus(); }
+        else if (p == O_AGAIN) rideAgain(); else if (p == O_MENU) { enterMode(mode == MODE_OLD ? MODE_WEEK : mode); screen = UI_TITLE; ui_reset_focus(); }
       }
     }
   }

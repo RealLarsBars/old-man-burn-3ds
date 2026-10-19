@@ -16,7 +16,7 @@
 #define LINK_FILE DIR_ "/link.txt"
 #define OUTBOX DIR_ "/outbox"
 #define BOARD_FILE DIR_ "/board.json"
-enum { K_STATE = 1, K_LINK, K_RUN, K_LOADOUT, K_WATCH };
+enum { K_STATE = 1, K_LINK, K_RUN, K_LOADOUT, K_WATCH, K_DAILY };
 static char token[80], name[64], auth[96], status[64] = "Not linked to Discord";
 static bool linked, haveClock, loadoutDirty, sending;
 static int sWeek, sDay; static u64 lastState, nextRetry; static char sending_file[128];
@@ -120,6 +120,27 @@ int sync_board(bool daily, int id, const BoardRow **rows, int *pot) {
 bool sync_daily_can_watch(void) { return dailyCanWatch; }
 int sync_daily_tries(void) { return linked && nBoard[1] >= 0 && boardWeek[1] == sDay ? dailyTries : -1; }
 
+/* ---------- starting a Daily Dash: POST /api/3ds/daily/start takes one of today's tries and gives its token ---------- */
+static int dailyAsk; static bool dailyFlight; static char dailyMsg[96];   // 0 nothing asked, 1 waiting, 2 yes, -1 no; a request out
+static char heldTok[72], rideTok[72]; static int heldDay = -1;          // a try taken but not ridden yet; the try this ride uses
+static void dailyNo(const char *m) { dailyAsk = -1; snprintf(dailyMsg, sizeof dailyMsg, "%s", m); }
+void sync_daily_start(void) {
+  if (heldTok[0] && heldDay == sDay) { dailyAsk = 2; return; }    // taken earlier, and the wait for it was cancelled
+  heldTok[0] = 0;
+  if (!linked) { dailyNo("Link to Discord (Settings) to ride the Daily Dash"); return; }
+  dailyAsk = 1;
+  if (dailyFlight) return;                                         // the last ask is still out: its answer will do
+  if (net_send(K_DAILY, "POST", "/api/3ds/daily/start", "{}", auth)) dailyFlight = true;
+  else dailyNo("No Wi-Fi: the Daily Dash needs it to check your tries");
+}
+int sync_daily_poll(const char **msg) {
+  int s = dailyAsk;
+  if (s == 2) { snprintf(rideTok, sizeof rideTok, "%s", heldTok); heldTok[0] = 0; dailyAsk = 0; return 1; }
+  if (s == -1) { *msg = dailyMsg; dailyAsk = 0; return -1; }
+  return 0;
+}
+void sync_daily_cancel(void) { if (dailyAsk == 1) dailyAsk = 0; }
+
 /* ---------- watching a run from the board: GET /api/3ds/board-replay/<id>, notes 10 a second like our own ---------- */
 static int watchState; static Watched *watched; static char watchMsg[96], watchId[12];   // 0 nothing asked, 1 loading, 2 in, -1 failed
 void sync_watch_free(Watched *w) { if (w) { free(w->f); free(w); } }
@@ -215,6 +236,8 @@ void sync_run(void) {
     json_array_append_new(fr, a);
   }
   json_object_set_new(j, "frames", fr);
+  if (rec.mode == RM_DAILY && rideTok[0]) json_object_set_new(j, "daily_token", json_string(rideTok));   // the try it used
+  rideTok[0] = 0;
   mkdir(OUTBOX, 0777);
   char path[128]; snprintf(path, sizeof path, OUTBOX "/%016llx.json", (unsigned long long)osGetTime());
   json_dump_file(j, path, JSON_COMPACT | JSON_REAL_PRECISION(10));
@@ -237,6 +260,7 @@ void sync_unlink(void) {
   linked = false; token[0] = name[0] = 0; haveClock = false;
   memset(ach_server, 0, sizeof ach_server); saveLink(); setStatus("Not linked to Discord");
   nBoard[0] = nBoard[1] = -1; myId[0] = 0; dailyCanWatch = false; dailyTries = -1; remove(BOARD_FILE);
+  heldTok[0] = 0;
 }
 void sync_loadout_changed(void) {
   if (!linked) return;
@@ -293,6 +317,21 @@ void sync_tick(bool menus) {
           snprintf(watchMsg, sizeof watchMsg, "%s", ok ? "That run has nothing to watch." : r.status == 0 ? "No connection. Is Wi-Fi on?"
                    : detail(j, "Couldn't load that run."));
         }
+      }
+    } else if (r.kind == K_DAILY) {
+      dailyFlight = false;
+      const char *t = json_string_value(json_object_get(j, "daily_token"));
+      if (ok && t) {
+        json_t *dd = json_object_get(j, "day");
+        snprintf(heldTok, sizeof heldTok, "%s", t); heldDay = json_is_integer(dd) ? (int)json_integer_value(dd) : sDay;
+        if (haveClock && heldDay != sDay) { sDay = heldDay; lastState = 0; }   // noon just passed: ride the server's new day
+        dailyTries = (int)json_integer_value(json_object_get(j, "tries_left"));
+        if (dailyAsk == 1) dailyAsk = 2;
+      } else {
+        if (r.status == 402) { dailyTries = 0; dailyCanWatch = true; }
+        if (dailyAsk == 1) dailyNo(r.status == 0 ? "No Wi-Fi: the Daily Dash needs it to check your tries"
+                                   : r.status == 402 ? "No Daily Dash tries left today. New map at noon Pacific"
+                                   : detail(j, "Couldn't start the Daily Dash. Try again."));
       }
     } else if (r.kind == K_LOADOUT) {
       if (ok) loadoutDirty = false;
