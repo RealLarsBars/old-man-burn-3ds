@@ -776,7 +776,8 @@ int main(void) {
         menus = true;
       }
     }
-    sync_tick(menus || st == ST_OVER);
+    perf_mark(PF_SIM);
+    sync_tick(menus || st == ST_OVER); perf_mark(PF_SYNC);
     if (watchLoading) {                                            // the board run asked for has come in (or couldn't)
       Watched *w; const char *msg; int r = sync_watch_poll(&w, &msg);
       if (r) watchLoading = false;

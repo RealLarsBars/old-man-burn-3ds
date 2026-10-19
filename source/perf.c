@@ -62,7 +62,7 @@ void perf_ride_start(const char *name, int sd) {
 }
 
 static const char *ST_NAME[4] = { "title", "riding", "crash", "over" };
-static const char *PART_NAME[PF_N] = { "game", "sound", "waiting", "drawing" };
+static const char *PART_NAME[PF_N] = { "game", "sound", "waiting", "drawing", "sync" };
 void perf_ride_end(int score) {
   if (!frames) return;
   struct stat sb;
@@ -86,8 +86,8 @@ void perf_ride_end(int score) {
     fprintf(f, "slowest frames (ms):\n");
     for (int i = 0; i < nworst && worst[i].total > SLOW_MS; i++) {
       const Frame *w = &worst[i];
-      fprintf(f, "  %.1f  game %.1f sound %.1f (%d buf) waiting %.1f drawing %.1f gpu %.1f  at %dm %s  particles %d\n", w->total,
-        w->part[PF_SIM], w->part[PF_AUDIO], w->audioBufs, w->part[PF_WAIT], w->part[PF_DRAW], w->gpu, w->dist, ST_NAME[w->st & 3], w->parts);
+      fprintf(f, "  %.1f  game %.1f sound %.1f (%d buf) waiting %.1f drawing %.1f sync %.1f gpu %.1f  at %dm %s  particles %d\n", w->total,
+        w->part[PF_SIM], w->part[PF_AUDIO], w->audioBufs, w->part[PF_WAIT], w->part[PF_DRAW], w->part[PF_SYNC], w->gpu, w->dist, ST_NAME[w->st & 3], w->parts);
     }
   }
   fputc('\n', f);

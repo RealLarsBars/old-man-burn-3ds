@@ -8,6 +8,7 @@
 void sync_init(void);                      // after ach_load: reads the link from the SD card and asks for the state
 void sync_exit(void);
 void sync_tick(bool menus);                // every frame; menus = on a menu screen, where a refresh can't hitch a ride
+                                           // (replies that finish mid-ride are only handled once it's over)
 bool sync_linked(void);
 const char *sync_name(void);               // the Discord name it's linked to
 const char *sync_status(void);             // a short line for the menus ("Synced with Discord", "Offline", ...)
