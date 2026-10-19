@@ -179,19 +179,21 @@ static void ftz(void) {
 #endif
 }
 static volatile int soundGaps;                                       // times every buffer had run dry: the sound cut out
-static int pump(void) {                                          // refill every buffer the DSP has finished playing
-  int n = 0;
-  for (int i = 0; i < NBUF; i++) if (wbuf[i].status == NDSP_WBUF_DONE) {
+static int pump(int most) {                                       // refill the buffers the DSP has finished playing, up to most
+  int done = 0, n = 0;
+  for (int i = 0; i < NBUF; i++) if (wbuf[i].status == NDSP_WBUF_DONE) done++;
+  if (done == NBUF) soundGaps++;
+  if (done > NBUF - 4) most = NBUF;                              // running low: catch right up so the sound doesn't cut out
+  for (int i = 0; i < NBUF && n < most; i++) if (wbuf[i].status == NDSP_WBUF_DONE) {
     fill(wbuf[i].data_pcm16, BUF); DSP_FlushDataCache(wbuf[i].data_pcm16, BUF * 2); ndspChnWaveBufAdd(0, &wbuf[i]); n++;
   }
-  if (n == NBUF) soundGaps++;
   return n;
 }
 int audio_gaps(void) { return soundGaps; }
 static void onDspFrame(void *d) { (void)d; LightEvent_Signal(&wake); }
 static void soundThread(void *arg) {
   (void)arg; ftz();
-  while (!quit) { LightEvent_Wait(&wake); LightLock_Lock(&lock); pump(); LightLock_Unlock(&lock); }
+  while (!quit) { LightEvent_Wait(&wake); LightLock_Lock(&lock); pump(NBUF); LightLock_Unlock(&lock); }
 }
 static void startThread(void) {
   LightLock_Init(&lock); LightEvent_Init(&wake, RESET_ONESHOT);
@@ -246,5 +248,7 @@ int audio_tick(void) {
   engFreqT = 46 + (float)g.v * 0.18f + (float)g.thr * 22;
   engGainT = st == ST_PLAY ? 0.05f + 0.05f * (float)g.thr : 0;
   dlyTime = fminf(0.95f, 60 / bpm() / 4 * 3);
-  return ok && !thread ? pump() : 0;
+  // In the main loop, at most 2 buffers a frame (a frame needs about 1.4): 3 at once while many organ voices play cost
+  // about 9 ms on an Old 3DS, enough to push the frame past the refresh.
+  return ok && !thread ? pump(2) : 0;
 }
