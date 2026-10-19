@@ -250,6 +250,7 @@ void sync_loadout_changed(void) {
 
 static const char *detail(json_t *j, const char *dflt) { const char *d = json_string_value(json_object_get(j, "detail")); return d ? d : dflt; }
 void sync_tick(bool menus) {
+  if (!menus) return;                                              // mid-ride, replies wait in the queue: handling one writes the SD card (80+ ms on an Old 3DS)
   NetResult r;
   while (net_poll(&r)) {
     json_error_t err; json_t *j = json_loads(r.body, 0, &err);
