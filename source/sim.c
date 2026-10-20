@@ -63,6 +63,7 @@ int mapDay(void) { return SEED >= DAILY_BASE ? SEED - DAILY_BASE : SEED; }
 static bool sw3(void) { return mapDay() >= SW3_FROM; }
 static bool sw4(void) { return mapDay() >= (SEED >= DAILY_BASE ? SW4_DAILY_FROM : SW4_FROM); }
 static bool splits(void) { return mapDay() >= (SEED >= DAILY_BASE ? SPLIT_DAILY_FROM : SPLIT_FROM); }
+static bool mixGaps(void) { return mapDay() >= (SEED >= DAILY_BASE ? MIX_DAILY_FROM : MIX_FROM); }
 bool thinRails(void) { return mapDay() >= THIN_RAILS_FROM; }
 #define RAIL_BAND 3
 
@@ -146,6 +147,25 @@ static void splitGap(double x, double len, bool guarded) {
   combos[ncombos++] = (Combo){ x, len, -1 };
 }
 static double barricadeLen(double m, double P, double f) { return rnd((240 + f * (140 + fmin(m * 0.05, 200))) * P / 170); }
+// Mixed gauntlets (mixGaps): about as many long gaps as before (half; an odd gauntlet rounds up or down at random), shuffled
+// into any order, never three long ones in a row. Fills long[i] with 1 at each long gap.
+static void mixedLongs(int k, int n, bool *lg) {
+  int nLong = n / 2 + (n % 2 == 1 && hash(SEED, 4100000 + k) < 0.5);
+  for (int t = 0; t < 8; t++) {
+    for (int i = 0; i < n; i++) lg[i] = i < nLong;
+    for (int j = n - 1; j > 0; j--) { int o = (int)floor(hash(SEED, 3000000 + k * 64 + t * 8 + j) * (j + 1)); bool v = lg[j]; lg[j] = lg[o]; lg[o] = v; }
+    bool three = false; for (int i = 0; i + 2 < n; i++) if (lg[i] && lg[i + 1] && lg[i + 2]) three = true;
+    if (!three) return;
+  }
+  for (int i = 0; i < n; i++) lg[i] = i % 2 == 1;                        // (never expected) the old short, long order
+}
+// Seconds of road between two gaps of a mixed gauntlet: the usual second or so, but two short gaps are sometimes a quick
+// double, and a long gauntlet may have one longer breath part way through.
+static double gauntletRoad(bool lg, bool nextLong, bool pause, double h) {
+  if (pause) return 1.5 + h * 0.4;
+  if (!lg && !nextLong && h < 0.5) return 0.6 + h * 0.4;                  // 0.6 to 0.8 s
+  return 0.85 + h * 0.25;
+}
 // From the maps of 2026-10-18 on (sw4) the road is built in phrases: gauntlets of gaps, rests and set pieces.
 static void genPhrase(void) {
   int k = phK++; double m = cursor / M_PX, P = pace(m);
@@ -179,13 +199,15 @@ static void genPhrase(void) {
   // On split maps a later gauntlet now and then ends in a split: its guardrails stop at the gap and pick up on the new road.
   int n = m < 1500 ? 2 + (R(7) < 0.5) : m < 3000 ? 3 + (R(7) < 0.5) : 4 + (int)floor(R(7) * 3);
   bool lastSplits = splits() && m >= 1200 && R(11) < 0.3;
+  bool mix = mixGaps(), lg[8]; int pause = -1;
+  if (mix) { mixedLongs(k, n, lg); if (n >= 4 && hash(SEED, 4000000 + k * 2) < 0.5) pause = (int)floor(hash(SEED, 4000001 + k * 2) * (n - 1)); }
   for (int i = 0; i < n; i++) {
     double mi = cursor / M_PX, Pi = pace(mi), q = hash(SEED, 60000 + k * 17 + i);
-    double len = rnd((i % 2 == 0 ? 0.55 + q * 0.3 : 0.9 + q * 0.25 + clampd((mi - 1000) / 6000, 0, 1) * 0.5) * Pi);
+    double len = rnd(((mix ? !lg[i] : i % 2 == 0) ? 0.55 + q * 0.3 : 0.9 + q * 0.25 + clampd((mi - 1000) / 6000, 0, 1) * 0.5) * Pi);
     if (lastSplits && i == n - 1) splitGap(cursor, len, true);
     else { spanPush(&gaps, cursor, len); spanPush(&edges, cursor - 100, len + 200); }
     cursor += len;
-    if (i < n - 1) { double road = rnd((0.85 + hash(SEED, 61000 + k * 17 + i) * 0.25) * Pi);
+    if (i < n - 1) { double h = hash(SEED, 61000 + k * 17 + i), road = rnd((mix ? gauntletRoad(lg[i], lg[i + 1], i == pause, h) : 0.85 + h * 0.25) * Pi);
       spanPush(&holds, cursor, road); cursor += road; }                 // swerves stay out of a gauntlet
   }
   #undef R
