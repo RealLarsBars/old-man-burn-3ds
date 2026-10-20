@@ -23,6 +23,7 @@ static int mode = MODE_WEEK, liveWeek, liveDay, oldWeek, curSeed;
 static char trackName[64];
 static bool optMusic = true, optSfx = true; static int tzOff = 0;   // hours the console clock is ahead of Pacific time
 static int dpadPct = 100, touchPct = 100;                       // steering sensitivity, percent (Settings sliders)
+static int volPct = 100;                                         // sound volume, percent (Settings slider)
 enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE, UI_CODE, UI_BOARD };
 static int screen = UI_TITLE, backTo = UI_TITLE;                // which menu the bottom screen shows (rides use st)
 static int capturing = -1;                                       // the control (BIND_*) waiting for a button press
@@ -59,8 +60,8 @@ static int bestOf(int seed) { for (int i = 0; i < nbests; i++) if (bests[i].seed
 static void save(void) {
   mkdir("sdmc:/3ds", 0777); mkdir(SAVE_DIR, 0777);
   FILE *f = fopen(SAVE_FILE, "w"); if (!f) return;
-  fprintf(f, "music %d\nsfx %d\ntz %d\ngo %d\nup %d\ndown %d\ndpad %d\ntouch %d\n", optMusic, optSfx, tzOff, (int)binds[0], (int)binds[1], (int)binds[2],
-    dpadPct, touchPct);
+  fprintf(f, "music %d\nsfx %d\ntz %d\ngo %d\nup %d\ndown %d\ndpad %d\ntouch %d\nvolume %d\n", optMusic, optSfx, tzOff, (int)binds[0], (int)binds[1], (int)binds[2],
+    dpadPct, touchPct, volPct);
   for (int i = 0; i < nbests; i++) fprintf(f, "best %d %d\n", bests[i].seed, bests[i].best);
   fclose(f);
 }
@@ -71,6 +72,7 @@ static void load(void) {
     if (!strcmp(k, "best") && fscanf(f, "%d", &b) == 1) { if (nbests < 512) bests[nbests++] = (Best){ a, b }; }
     else if (!strcmp(k, "music")) optMusic = a; else if (!strcmp(k, "sfx")) optSfx = a; else if (!strcmp(k, "tz")) tzOff = a;
     else if (!strcmp(k, "dpad")) dpadPct = a < 50 ? 50 : a > 200 ? 200 : a; else if (!strcmp(k, "touch")) touchPct = a < 50 ? 50 : a > 200 ? 200 : a;
+    else if (!strcmp(k, "volume")) volPct = a < 50 ? 50 : a > 200 ? 200 : a;
     else for (int i = 0; i < 3; i++) if (!strcmp(k, (const char *[]){ "go", "up", "down" }[i]) && validKey((u32)a)) binds[i] = (u32)a;
   }
   fclose(f);
@@ -622,10 +624,10 @@ static void topCode(void) {
 }
 
 /* ---------- settings: a panel like the web's, with sliders for steering ---------- */
-enum { S_MUSIC, S_SFX, S_DPAD, S_TOUCH, S_CLOCK, S_GO, S_UP, S_DOWN, S_RESET, S_DISCORD, S_CLOSE, NS };
+enum { S_MUSIC, S_SFX, S_VOL, S_DPAD, S_TOUCH, S_CLOCK, S_GO, S_UP, S_DOWN, S_RESET, S_DISCORD, S_CLOSE, NS };
 static int setHot[NS];
-static const Box SL_DPAD = { 168, 0, 104, 14 }, SL_TOUCH = { 168, 0, 104, 14 };
-static double rowY(int i) { return 26 + i * 16.5 + (i >= S_CLOCK ? 3 : 0) + (i >= S_GO ? 3 : 0) + (i >= S_DISCORD ? 3 : 0); }
+static const Box SL_DPAD = { 168, 0, 104, 14 };     // every slider row's slider
+static double rowY(int i) { return 26 + i * 15.5 + (i >= S_CLOCK ? 3 : 0) + (i >= S_GO ? 3 : 0) + (i >= S_DISCORD ? 3 : 0); }
 static void bottomSettings(void) {
   cv_fill(rgba(10, 6, 18, .97)); cv_rect(0, 0, 320, 240);
   cv_stroke_rect(4.5, 4.5, 311, 231, UI_PINK, 1);
@@ -633,20 +635,21 @@ static void bottomSettings(void) {
   char v[48];
   for (int i = 0; i < S_CLOSE; i++) {
     double y = rowY(i);
-    setHot[i] = ui_hot((Box){ 10, y - 1, 300, 17 });
+    setHot[i] = ui_hot((Box){ 10, y - 1, 300, 16 });
     bool f = ui_is_focus(setHot[i]);
-    if (f) { cv_fill(rgba(34, 230, 216, .08)); cv_rect(10, y - 1, 300, 17); }
+    if (f) { cv_fill(rgba(34, 230, 216, .08)); cv_rect(10, y - 1, 300, 16); }
     unsigned col = f ? UI_BONE : 0xcfc9e0ffu;
     double ty = y + 11;
     switch (i) {
       case S_MUSIC: ui_check(16, y + 3, optMusic); ui_text("Music", 34, ty, 9, col, AL_LEFT); break;
       case S_SFX: ui_check(16, y + 3, optSfx); ui_text("Sound effects (engine and crashes)", 34, ty, 9, col, AL_LEFT); break;
-      case S_DPAD: case S_TOUCH: {
-        int pct = i == S_DPAD ? dpadPct : touchPct;
-        ui_text(i == S_DPAD ? "Steering speed" : "Drag sensitivity", 16, ty, 9, col, AL_LEFT);
-        Box sb = i == S_DPAD ? SL_DPAD : SL_TOUCH; sb.y = y + 1;
+      case S_VOL: case S_DPAD: case S_TOUCH: {
+        int pct = i == S_VOL ? volPct : i == S_DPAD ? dpadPct : touchPct;
+        ui_text(i == S_VOL ? "Volume" : i == S_DPAD ? "Steering speed" : "Drag sensitivity", 16, ty, 9, col, AL_LEFT);
+        Box sb = SL_DPAD; sb.y = y + 1;
         ui_slider(sb, (pct - 50) / 150.0, f);
-        snprintf(v, sizeof v, "%d.%dx", pct / 100, pct / 10 % 10); ui_text(v, 306, ty, 9, UI_GOLD, AL_RIGHT);
+        if (i == S_VOL) snprintf(v, sizeof v, "%d%%", pct); else snprintf(v, sizeof v, "%d.%dx", pct / 100, pct / 10 % 10);
+        ui_text(v, 306, ty, 9, UI_GOLD, AL_RIGHT);
         break; }
       case S_CLOCK:
         ui_text("Clock vs Pacific time", 16, ty, 9, col, AL_LEFT);
@@ -667,7 +670,8 @@ static void bottomSettings(void) {
   setHot[S_CLOSE] = ui_button((Box){ 14, 210, 58, 20 }, "Close", BTN_MINI, 8);
   int fi = -1; for (int i = 0; i < NS; i++) if (ui_is_focus(setHot[i])) fi = i;
   if (fi != S_DISCORD) unlinkAsk = false;
-  const char *help = fi == S_DPAD ? "How fast the bike moves while you hold up or down."
+  const char *help = fi == S_VOL ? "How loud the game is, on top of the volume slider on the 3DS."
+    : fi == S_DPAD ? "How fast the bike moves while you hold up or down."
     : fi == S_TOUCH ? "How far the bike moves for each bit you drag."
     : fi == S_CLOCK ? (sync_linked() ? "Linked to Discord: the maps follow the server's clock." : "Hours your clock is ahead of Pacific, so maps change when Discord's do.")
     : fi == S_DISCORD ? (sync_linked() ? (unlinkAsk ? "Press A again to unlink this 3DS from Discord." : sync_status()) : "In Discord: Settings, LINK A 3DS. Then A here and type its code.")
@@ -694,10 +698,11 @@ static void dailyAnswer(void) {
 static void settingsAdjust(int row, int d) {
   if (row == S_MUSIC) optMusic = !optMusic;
   else if (row == S_SFX) optSfx = !optSfx;
+  else if (row == S_VOL) volPct = (int)clampd(volPct + d * 10, 50, 200);
   else if (row == S_DPAD) dpadPct = (int)clampd(dpadPct + d * 10, 50, 200);
   else if (row == S_TOUCH) touchPct = (int)clampd(touchPct + d * 10, 50, 200);
   else if (row == S_CLOCK) { tzOff += d; if (tzOff > 24) tzOff = -24; if (tzOff < -24) tzOff = 24; int m = mode; clockMaps(); enterMode(m); }
-  audio_set(optMusic, optSfx);
+  audio_set(optMusic, optSfx); audio_volume(volPct);
 }
 
 int main(void) {
@@ -709,7 +714,7 @@ int main(void) {
   sync_init();
   draw_init();
   gfx_build(draw_sprites);
-  audio_init(); audio_set(optMusic, optSfx);
+  audio_init(); audio_set(optMusic, optSfx); audio_volume(volPct);
   perf_init(); int audioBufs = 0;
   clockMaps(); enterMode(MODE_WEEK);
   aptHookCookie awayHook; aptHook(&awayHook, leftMidRide, NULL);
@@ -734,12 +739,12 @@ int main(void) {
       if (kd & (KEY_SELECT | KEY_B)) { screen = backTo; save(); ui_reset_focus(); kd = 0; }
       int fi = -1; for (int i = 0; i < NS; i++) if (ui_is_focus(setHot[i])) fi = i;
       int d = (kd & KEY_RIGHT) ? 1 : (kd & KEY_LEFT) ? -1 : 0;
-      if (d && fi >= S_DPAD && fi <= S_CLOCK) { settingsAdjust(fi, d); kd &= ~(KEY_LEFT | KEY_RIGHT); }
+      if (d && fi >= S_VOL && fi <= S_CLOCK) { settingsAdjust(fi, d); kd &= ~(KEY_LEFT | KEY_RIGHT); }
       kd &= ~(KEY_LEFT | KEY_RIGHT);
       if ((kh & KEY_TOUCH) && tp.px >= SL_DPAD.x - 6 && tp.px <= SL_DPAD.x + SL_DPAD.w + 6) {   // dragging a slider
-        for (int r = S_DPAD; r <= S_TOUCH; r++) if (tp.py >= rowY(r) - 2 && tp.py < rowY(r) + 17) {
+        for (int r = S_VOL; r <= S_TOUCH; r++) if (tp.py >= rowY(r) - 1 && tp.py < rowY(r) + 14.5) {
           int pct = (int)(50 + clampd((tp.px - SL_DPAD.x) / SL_DPAD.w, 0, 1) * 150 + 5) / 10 * 10;
-          if (r == S_DPAD) dpadPct = pct; else touchPct = pct;
+          if (r == S_VOL) { volPct = pct; audio_volume(volPct); } else if (r == S_DPAD) dpadPct = pct; else touchPct = pct;
           ui_set_focus(setHot[r]);
         }
       }
