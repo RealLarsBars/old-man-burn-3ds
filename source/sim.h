@@ -17,6 +17,8 @@
 #define SW4_DAILY_FROM 20738
 #define SPLIT_FROM 20744       // split roads: weekly maps from Oct 18 2026, Daily Dash from day 20740 (Oct 14 noon PT)
 #define SPLIT_DAILY_FROM 20740
+#define MIX_FROM 20751         // mixed gauntlets (shuffled short and long gaps): weekly maps from Oct 25 2026, Daily Dash
+#define MIX_DAILY_FROM 20747   // from day 20747 (Oct 21 noon PT)
 #define THIN_RAILS_FROM 20737
 #define FIRST_WEEK 20730
 #define DAILY_BASE 1000000
