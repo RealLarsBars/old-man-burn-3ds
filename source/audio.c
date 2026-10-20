@@ -32,6 +32,11 @@ static uint32_t nseed = 22222;
 static Biquad bassF, engF; static float engPh, engFreq = 60, engGain = 0, engGainT = 0, engFreqT = 60;
 static float *dly; static int dlyLen, dlyPos; static float dlyTime = 0.29f;
 static float musicLvl = 0.55f, musicT = 0.55f;
+// Louder than the web game's level, since the 3DS speakers are small and quiet: everything is turned up by BOOST and a
+// limiter holds the loud hits (the kick, the crash) under full scale instead of letting them clip. vol is the Settings slider.
+#define BOOST 3.0f
+#define LIM_T 0.92f
+static float vol = 1, limEnv, limRel;
 static int stepN, stepLeft; static int lastSt = -1;
 
 static void biquad(Biquad *q, int type, float f, float Q) {         // RBJ cookbook, as Web Audio's BiquadFilterNode
@@ -155,7 +160,10 @@ static void mixRange(s16 *out, int from, int n) {                // n samples of
     dly[dlyPos] = lead * 0.42f + echo * 0.32f; if (++dlyPos == dlyLen) dlyPos = 0;
     musicLvl += (musicT - musicLvl) * lvlK;
     float m = (busBuf[B_MUSIC][i] + bq(&bassF, busBuf[B_BASS][i]) + lead + echo) * musicLvl * mOn + fx * fxOn;
-    int o = (int)(m * (0.6f * 40000)); out[from + i] = o > 32767 ? 32767 : o < -32768 ? -32768 : o;
+    float x = m * (0.6f * 40000 / 32767) * BOOST * vol, a = fabsf(x);
+    limEnv = a > limEnv ? a : limEnv * limRel;                     // jumps up with a hit, lets go over about 60 ms
+    if (limEnv > LIM_T) x *= LIM_T / limEnv;
+    out[from + i] = (s16)(x * 32767);
   }
 }
 static void fill(s16 *out, int n) {
@@ -212,6 +220,7 @@ void audio_init(void) {
   for (int i = 0; i < 1024; i++) sinTab[i] = sinf(i * 2 * (float)M_PI / 1024);
   biquad(&bassF, F_LP, 600, 1); biquad(&engF, F_LP, 420, 1);
   dlyLen = RATE; dly = calloc(dlyLen, sizeof(float));
+  limRel = expf(-1.0f / (0.06f * RATE));
   if (R_FAILED(ndspInit())) return;                               // no dspfirm.cdc on the SD card: play silently
   ok = true;
   ndspSetOutputMode(NDSP_OUTPUT_MONO);
@@ -230,6 +239,7 @@ void audio_exit(void) {
   ndspExit(); linearFree(pcm);
 }
 void audio_set(bool m, bool s) { music = m; sfx = s; }
+void audio_volume(int pct) { vol = pct / 100.0f; }
 void audio_crash(void) {
   if (thread) LightLock_Lock(&lock);
   noise(0, 1.0f, F_LP, 1800, 0.9f, B_SFX); tone(0, 160, 0.7f, W_SINE, 1.0f, B_SFX, 28);
