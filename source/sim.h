@@ -38,7 +38,7 @@ enum { CAUSE_NONE, CAUSE_BEHIND, CAUSE_AHEAD, CAUSE_RAIL };
 
 // kind picks how drawParts paints a particle: the trails (look.c) have their own looks; ph is a coin's, bat's, flake's
 // or glint's animation phase
-enum { PK_PLAIN, PK_RING, PK_BUBBLE, PK_COIN, PK_BAT, PK_FLAKE, PK_GLINT, PK_FIRE, PK_SPARK };
+enum { PK_PLAIN, PK_RING, PK_BUBBLE, PK_COIN, PK_BAT, PK_FLAKE, PK_GLINT, PK_FIRE, PK_SPARK, PK_HEART, PK_PETAL, PK_NOTE, PK_STAR };
 typedef struct {
   double x, y, vx, vy, life, max, s, grow, grav, w;
   uint32_t c; uint8_t round, kind; float ph;

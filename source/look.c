@@ -39,18 +39,21 @@ static void star5(double cx, double cy, double r, double rot) {
   double p[20]; for (int i = 0; i < 10; i++) { double a = rot + i * PI / 5 - PI / 2, rr = i & 1 ? r * 0.45 : r; p[i * 2] = cx + cos(a) * rr; p[i * 2 + 1] = cy + sin(a) * rr; }
   cv_poly(p, 10);
 }
+static void heart(double cx, double cy, double s) {             // a heart in the current fill, point down at cy + s
+  cv_begin(); cv_arc(cx - s * 0.5, cy - s * 0.25, s * 0.55, PI * 0.75, PI * 2); cv_arc(cx + s * 0.5, cy - s * 0.25, s * 0.55, PI, PI * 2.25); cv_line(cx, cy + s); cv_fillpath();
+}
 
 /* ---------- the items ---------- */
-static const char *const ITEMS[NSLOT][20] = {
-  { "red", "gold", "black", "pink", "cyan", "sunrise", "goldenhour", "money", "holo", "chrome" },
-  { "navy", "green", "mustard", "purple", "hivis", "plaid", "checker", "zebra", "tiedye", "disco", "flame", "rainbow", "varsity", "sunset", "greaser", "skeleton", "xmas" },
-  { "redcap", "straw", "hardhat", "nightcap", "crown", "cowboy", "tophat", "wizard", "chef", "party", "viking", "propeller", "cone", "laurel", "pumpkin", "santa" },
-  { "white", "gold", "cyan", "spokes", "spinner", "rainbow", "flame", "pizza", "vinyl", "star", "sunwheel", "web" },
-  { "stripe", "flames", "plate", "checker", "lightning", "skull", "stars", "eight", "hearts", "kanji", "sun", "roundel", "batmoon" },
-  { "shades", "streamers", "charm", "scarf", "beer", "monocle", "pipe", "dice", "pirate", "foxtail", "goggles", "bowtie", "pigeon", "mug", "watch", "medal", "chain", "spider" },
-  { "crate", "wicker", "pizza", "toolbox", "cooler", "guitar", "duffel", "chest", "boombox", "lunch", "paperbag", "piggy", "cauldron" },
-  { "eightball", "candy", "golden", "neon", "poolcue", "skull", "flamingo", "wizard", "fishing", "lollipop", "golf", "bouquet", "cat", "trophy", "broom" },
-  { "sparks", "rainbow", "flames", "gold", "lines", "coins", "bubbles", "smoke", "bats", "snow" }
+static const char *const ITEMS[NSLOT][24] = {
+  { "red", "gold", "black", "pink", "cyan", "sunrise", "goldenhour", "money", "holo", "chrome", "cotton", "lava", "glacier", "toxic" },
+  { "navy", "green", "mustard", "purple", "hivis", "plaid", "checker", "zebra", "tiedye", "disco", "flame", "rainbow", "varsity", "sunset", "greaser", "skeleton", "xmas", "sweetheart", "denim", "tuxedo", "racing" },
+  { "redcap", "straw", "hardhat", "nightcap", "crown", "cowboy", "tophat", "wizard", "chef", "party", "viking", "propeller", "cone", "laurel", "pumpkin", "santa", "bow", "helmet", "tricorn", "halo" },
+  { "white", "gold", "cyan", "spokes", "spinner", "rainbow", "flame", "pizza", "vinyl", "star", "sunwheel", "web", "hearts", "donut", "saw", "galaxy" },
+  { "stripe", "flames", "plate", "checker", "lightning", "skull", "stars", "eight", "hearts", "kanji", "sun", "roundel", "batmoon", "daisy", "tiger", "ufo", "wings" },
+  { "shades", "streamers", "charm", "scarf", "beer", "monocle", "pipe", "dice", "pirate", "foxtail", "goggles", "bowtie", "pigeon", "mug", "watch", "medal", "chain", "spider", "heartshades", "headphones", "parrot", "balloon" },
+  { "crate", "wicker", "pizza", "toolbox", "cooler", "guitar", "duffel", "chest", "boombox", "lunch", "paperbag", "piggy", "cauldron", "flowers", "fishbowl", "tv", "trunk" },
+  { "eightball", "candy", "golden", "neon", "poolcue", "skull", "flamingo", "wizard", "fishing", "lollipop", "golf", "bouquet", "cat", "trophy", "broom", "wand", "laser", "trident", "baguette" },
+  { "sparks", "rainbow", "flames", "gold", "lines", "coins", "bubbles", "smoke", "bats", "snow", "hearts", "petals", "notes", "stardust" }
 };
 static bool inList(const char *id, const char *const *list) { for (; *list; list++) if (!strcmp(id, *list)) return true; return false; }
 static char raw[NSLOT][16], cur[NSLOT][16];                     // what was set, and what is drawn (unknown ids draw the default)
@@ -64,7 +67,8 @@ static int phCur = -1;
 static const struct { const char *id; col_t a, b; } PAINTS[] = {
   { "red", H(e0242e), H(ff8a4a) }, { "gold", H(e9b923), H(fff3a8) }, { "black", H(1c1a24), H(6c5cff) }, { "pink", H(ff3ea5), H(ffc2e6) },
   { "cyan", H(22e6d8), H(c8fffa) }, { "sunrise", H(ff6a3a), H(ffd9a0) }, { "goldenhour", H(ffb347), H(fff3c0) }, { "money", H(1f9a4a), H(b8ffb0) },
-  { "chrome", H(b8bccb), H(ffffff) }, { "holo", H(8a7aff), H(7dfff0) } };
+  { "chrome", H(b8bccb), H(ffffff) }, { "holo", H(8a7aff), H(7dfff0) },
+  { "cotton", H(ffa8d2), H(b8e4ff) }, { "lava", H(2a0c10), H(ff5a1f) }, { "glacier", H(7fd4ff), H(effcff) }, { "toxic", H(8aff3a), H(eaff6a) } };
 static col_t tank1 = H(ffd21f), tank2 = H(ff5a1f);
 
 /* ---------- cardigans: each pixel's colour comes from px(x, y, sleeve), as in the web game ---------- */
@@ -165,6 +169,28 @@ static col_t pxGreaser(int x, int y, bool sl) {
   if (sl) return y == -29 && x < 21 ? H(3a3448) : H(16131c);
   return (x > -6 && x < 8 && y == (int)rnd(-23 - (x + 6) * 4 / 13.0)) || (x >= 8 && x < 12 && y == -30) ? H(4a4458) : H(16131c);
 }
+/* ---------- third wave: the Sweetheart set and more ---------- */
+static col_t pxSweetheart(int x, int y, bool sl) {               // soft pink knit with little hearts
+  int r = fdiv(y + 42, 6), hx = md(x + (r & 1) * 4, 8), hy = md(y + 42, 6);
+  if (hy < 4 && hx < 5 && HEART_PX[hy][hx] == 'X') return r & 1 ? H(ffffff) : H(e8336f);
+  return md(x, 4) == 0 ? H(ffa2c8) : H(ffb6d5);
+}
+static col_t pxDenim(int x, int y, bool sl) {                    // twill, orange seam stitching, a smiley patch
+  if (!sl && (x - 2) * (x - 2) + (y + 20) * (y + 20) < 7) return ((x == 1 || x == 3) && y == -21) || (y == -19 && x > 0 && x < 4) ? H(14101f) : H(ffd21f);
+  if (sl ? x == 16 : y == -24) return md(x + y, 2) ? H(d9a23a) : H(2f5088);
+  return md(x + y, 3) == 0 ? H(4a72b0) : md(x - y, 5) == 0 ? H(2f5088) : H(3a5f9a);
+}
+static col_t pxTuxedo(int x, int y, bool sl) {                   // black tails over a pressed white shirt
+  if (sl) return x >= 22 ? H(f1ecf7) : y == -30 ? H(2a2638) : H(1a1626);
+  if (x >= 12 && x <= 16) return x == 14 && md(y, 3) == 0 ? H(14101f) : H(f1ecf7);
+  return x == 11 || x == 17 || (y == -31 + (int)rnd((11 - x) * 0.4) && x > 6) ? H(2a2638) : H(1a1626);
+}
+static col_t pxRacing(int x, int y, bool sl) {                   // race leathers: white stripes, black back panel
+  if (sl) return y == -28 ? H(f1ecf7) : x >= 20 ? H(14101f) : H(e0242e);
+  if (y >= -22 && y <= -20) return H(f1ecf7);
+  if (y == -19 || y == -23) return H(14101f);
+  return x < -2 ? H(14101f) : x < 0 ? H(f1ecf7) : H(e0242e);
+}
 static const Coat COATS[] = {
   { "", H(8a5a2e), H(5e3a1a), 0, H(e9dcb8), CS_CARDIGAN, false, pxKnit },
   { "navy", H(2a4272), H(1a2a4a), 0, H(e9b923), CS_CARDIGAN, false, pxNavy },
@@ -184,6 +210,10 @@ static const Coat COATS[] = {
   { "skeleton", H(16121e), H(2a2238), 0, H(efeadf), CS_JACKET, false, pxSkeleton },
   { "xmas", H(c0242e), H(1f6a3a), H(1f6a3a), H(ffd21f), CS_CARDIGAN, false, pxXmas },
   { "greaser", H(16131c), H(2c2836), 0, H(c8c8d8), CS_GREASER, false, pxGreaser },
+  { "sweetheart", H(ffb6d5), H(ff6fae), 0, H(ffffff), CS_CARDIGAN, false, pxSweetheart },
+  { "denim", H(3a5f9a), H(2a456e), 0, H(d9a23a), CS_JACKET, false, pxDenim },
+  { "tuxedo", H(1a1626), H(f1ecf7), H(1a1626), H(f1ecf7), CS_JACKET, false, pxTuxedo },
+  { "racing", H(e0242e), H(14101f), 0, H(c8c8d8), CS_JACKET, false, pxRacing },
 };
 static const Coat *CO = COATS;
 // The default cardigan, knitted: dark ribs every fourth column and light stitches between. The port always drew it like
@@ -285,6 +315,30 @@ static void drawWheel(double cx) {
     C(H(14101f), cos(a + 0.5) * 3.6, sin(a + 0.5) * 3.6, 0.9);
     R(H(c8c8d8), -1, -1, 2, 2); cv_restore(); return;
   }
+  if (!strcmp(k, "hearts")) {                                   // Sweetheart: a pink rim, four hearts turning round a red heart hub
+    disc(8, H(14101f)); disc(6.6, H(ff6fae)); disc(5.6, H(ffe0ef)); cv_fill(H(ff3ea5));
+    for (int i = 0; i < 4; i++) { double t = a + i * 1.5708; cv_save(); cv_translate(cos(t) * 3.4, sin(t) * 3.4); cv_rotate(t - 1.5708); heart(0, 0, 1.3); cv_restore(); }
+    cv_fill(H(e0242e)); cv_save(); cv_rotate(a); heart(0, 0, 1.2); cv_restore(); cv_restore(); return;
+  }
+  if (!strcmp(k, "donut")) {                                    // a pink-iced ring donut, sprinkles and all, as the tyre
+    disc(8, H(b8742e)); disc(7.2, H(ff8ac0)); disc(3.2, H(b8742e)); disc(2.4, H(14101f));
+    static const col_t sc[5] = { H(ffffff), H(ffe14a), H(22e6d8), H(7a4aff), H(4ad86a) };
+    for (int i = 0; i < 12; i++) { double t = a + i * 0.5236 + (i & 1) * 0.2, r = i & 1 ? 4.6 : 5.9; cv_save(); cv_translate(cos(t) * r, sin(t) * r); cv_rotate(t + i); R(sc[i % 5], -0.8, -0.3, 1.6, 0.6); cv_restore(); }
+    A(rgba(255, 255, 255, .55), 0.8, 0, 0, 6, -2.6, -1.8); cv_restore(); return;
+  }
+  if (!strcmp(k, "saw")) {                                      // a buzzsaw blade: sixteen hooked teeth, vented steel, a bolt
+    cv_fill(H(c8ccd8)); cv_begin();
+    for (int i = 0; i < 16; i++) { double t = a + i * 0.3927; cv_line(cos(t) * 6.6, sin(t) * 6.6); cv_line(cos(t + 0.1) * 8.4, sin(t + 0.1) * 8.4); cv_line(cos(t + 0.3) * 7, sin(t + 0.3) * 7); }
+    cv_fillpath(); disc(6.4, H(8d90a6));
+    for (int i = 0; i < 3; i++) { double t = a + i * 2.094; C(H(5e5a76), cos(t) * 3.6, sin(t) * 3.6, 1.2); }
+    A(rgba(255, 255, 255, .6), 0.6, 0, 0, 5.2, a, a + 1.4); disc(1.8, H(3a3556)); R(H(d9dcf0), -0.8, -0.8, 1.6, 1.6); cv_restore(); return;
+  }
+  if (!strcmp(k, "galaxy")) {                                   // a spiral galaxy spinning in the hub, stars and all
+    disc(8, H(14101f)); disc(6.6, H(7a4aff)); disc(5.9, H(0c0820));
+    for (int arm = 0; arm < 2; arm++) for (int i = 0; i < 9; i++) { double t = a + arm * PI + i * 0.42, r = 0.8 + i * 0.58; C(i < 3 ? H(ffffff) : i < 6 ? H(ff8ad0) : H(8a6aff), cos(t) * r, sin(t) * r, 0.75 - i * 0.04); }
+    for (int i = 0; i < 5; i++) { double t = a * 0.5 + i * 1.3; R(H(ffffff), cos(t) * (2.6 + i * 0.6) - 0.3, sin(t) * (2.6 + i * 0.6) - 0.3, 0.6, 0.6); }
+    disc(1, H(fff3c0)); cv_restore(); return;
+  }
   disc(8, H(14101f));
   if (!strcmp(k, "white")) { disc(7.2, H(f1ecf7)); disc(5.8, H(14101f)); }
   col_t rimC = H(6c6a86);
@@ -315,9 +369,23 @@ static void drawTank(void) {                                    // base paint, a
   R(holo ? hslc(T * 70 + 60, 80, 48) : black ? H(0c0a12) : shadec(c1, 0.72), 10, -11.4, 20, 3);
   if (IS(SL_PAINT, "chrome")) { R(H(6c6f84), 10, -11.6, 20, 1.4); R(H(ffffff), 14, -16.6, 13, 0.9); R(H(8d90a6), 12, -14.6, 16, 0.7); }
   if (black) R(rgba(108, 92, 255, .5), 11, -14.8, 18, 0.8);
+  if (IS(SL_PAINT, "lava")) {                                   // cooled black rock split by glowing cracks
+    cv_begin(); cv_move(11, -15); cv_line(14, -13.6); cv_line(16, -15.4); cv_line(19.5, -14); cv_line(22, -16.6); cv_line(25, -15.2); cv_line(29, -16.4);
+    cv_move(16, -15.4); cv_line(17, -18.4); cv_move(22, -16.6); cv_line(23.6, -11.6); cv_stroke(H(ff8a1f), 0.7);
+    R(H(ffe14a), 19, -14.4, 1, 0.8); R(H(ffe14a), 22.6, -16.2, 0.8, 0.8);
+  }
+  if (IS(SL_PAINT, "glacier")) {                                // frost crosses
+    static const double fp[5][2] = { { 12.5, -16 }, { 15, -18 }, { 27, -12.6 }, { 25.5, -18.2 }, { 13, -12.2 } };
+    cv_fill(rgba(255, 255, 255, .8)); for (int i = 0; i < 5; i++) { F(fp[i][0] - 1, fp[i][1], 3, 0.6); F(fp[i][0], fp[i][1] - 1, 0.6, 2.6); }
+  }
+  if (IS(SL_PAINT, "toxic")) {                                  // slime dripping off the top
+    static const double dr[4][2] = { { 13, 2.6 }, { 17.4, 4.2 }, { 21, 1.8 }, { 25.6, 3.4 } };
+    R(H(1f3a12), 10, -19.6, 20, 2.2); for (int i = 0; i < 4; i++) { F(dr[i][0], -17.6, 1.6, dr[i][1]); cv_circle(dr[i][0] + 0.8, -17.6 + dr[i][1], 0.95); }
+  }
+  if (IS(SL_PAINT, "cotton")) { cv_fill(H(d8b8ff)); cv_begin(); cv_move(11, -11.6); cv_quad(20, -15, 29, -11.6); cv_line(29, -10); cv_line(11, -10); cv_fillpath(); }   // a lavender belly
   cv_fill(c2); POLY(13, -13, 20, -17, 24, -13, 18, -12);
   cv_fill(rgba(255, 255, 255, .75)); F(24, -17.6, 2, 1); F(26.4, -16.8, 1, 1);
-  if (IS(SL_PAINT, "gold") || IS(SL_PAINT, "goldenhour") || IS(SL_PAINT, "money")) {   // the precious paints catch the light now and then
+  if (IS(SL_PAINT, "gold") || IS(SL_PAINT, "goldenhour") || IS(SL_PAINT, "money") || IS(SL_PAINT, "cotton")) {   // the precious paints catch the light now and then
     double tw = tmod(T * 0.8);
     if (tw < 0.35) { double sx = 14 + tw * 40; cv_fill(rgba(255, 255, 255, .85)); F(sx, -18, 1, 3); F(sx - 1, -16.5, 3, 1); }
   }
@@ -359,6 +427,38 @@ static void drawDecal2(const char *k) {
   else if (!strcmp(k, "sun")) {                                 // a sunburst: wedge rays that turn slowly round a hot core
     for (int i = 0; i < 12; i++) { double a = i * PI / 6 + T * 0.4; cv_fill(i & 1 ? H(ff8a1f) : H(e0242e)); POLY(22.5, -14, 22.5 + cos(a - 0.17) * 11, -14 + sin(a - 0.17) * 11, 22.5 + cos(a + 0.17) * 11, -14 + sin(a + 0.17) * 11); }
     C(H(14101f), 22.5, -14, 3.6); C(H(ffd21f), 22.5, -14, 2.8); C(H(fff3a8), 21.8, -14.8, 1);
+  }
+  else if (!strcmp(k, "daisy")) {                               // Sweetheart: a little chain of white daisies
+    static const double ds[3][3] = { { 15.6, -13.2, 1 }, { 21.8, -15, 1.5 }, { 27, -12.4, 1.1 } };
+    for (int j = 0; j < 3; j++) {
+      double dx = ds[j][0], dy = ds[j][1], r = ds[j][2];
+      for (int i = 0; i < 6; i++) C(H(14101f), dx + cos(i * 1.047) * r * 1.5, dy + sin(i * 1.047) * r * 1.5, r * 1.05);
+      for (int i = 0; i < 6; i++) C(H(ffffff), dx + cos(i * 1.047) * r * 1.5, dy + sin(i * 1.047) * r * 1.5, r * 0.8);
+      C(H(ffd21f), dx, dy, r * 0.8);
+    }
+    R(H(4fb85a), 17.4, -12.6, 2.6, 0.6); R(H(4fb85a), 23.8, -13.4, 2.2, 0.6);
+  }
+  else if (!strcmp(k, "tiger")) {                               // tiger stripes clawing in from the top and bottom of the tank
+    static const double tg[6][3] = { { 12.5, 1, 3.4 }, { 15.6, 0, 4.6 }, { 18.4, 1, 3.8 }, { 21.6, 0, 5 }, { 24.6, 1, 4 }, { 27.4, 0, 3.6 } };
+    cv_fill(H(14101f));
+    for (int i = 0; i < 6; i++) { double x0 = tg[i][0], len = tg[i][2], y0 = tg[i][1] ? -19.2 : -8.8, d = tg[i][1] ? 1 : -1; POLY(x0, y0, x0 + 2.2, y0, x0 + 0.4, y0 + d * len, x0 + 1.4, y0 + d * len * 0.55); }
+  }
+  else if (!strcmp(k, "ufo")) {                                 // a flying saucer beaming something up
+    cv_fill(rgba(255, 240, 140, .45)); POLY(20.6, -14, 24.4, -14, 26.4, -8.6, 18.6, -8.6);
+    E(H(14101f), 22.5, -15, 6, 2.2, 0, 0, 7); E(H(14101f), 22.5, -16.4, 3, 2.6, 0, PI, 2 * PI);
+    E(H(c8ccd8), 22.5, -15, 5.3, 1.6, 0, 0, 7);
+    E(H(7dfff0), 22.5, -16.4, 2.3, 2, 0, PI, 2 * PI); R(H(ffffff), 21.6, -17.6, 0.8, 0.8);
+    static const double lx[4] = { 18.6, 21.2, 23.8, 26.4 }; static const col_t lc[4] = { H(ff3ea5), H(ffe14a), H(4ad86a), H(ff3ea5) };
+    for (int i = 0; i < 4; i++) R(lc[i], lx[i] - 0.4, -15.2, 0.8, 0.8);
+    R(H(f1ecf7), 22, -10.6, 1, 1.4);
+  }
+  else if (!strcmp(k, "wings")) {                               // a winged badge, feathers swept back
+    for (int sd = -1; sd <= 1; sd += 2) for (int i = 0; i < 3; i++) {
+      double len = 7.4 - i * 1.6, yy = -15.2 + i * 1.5;
+      cv_fill(H(14101f)); POLY(22.5, yy - 1.2, 22.5 + sd * len, yy - 2 + i * 0.4, 22.5 + sd * (len - 1.2), yy + 0.9, 22.5, yy + 1.1);
+      cv_fill(i ? H(d9dcf0) : H(f1ecf7)); POLY(22.5, yy - 0.6, 22.5 + sd * (len - 0.6), yy - 1.5 + i * 0.4, 22.5 + sd * (len - 1.6), yy + 0.4, 22.5, yy + 0.5);
+    }
+    C(H(14101f), 22.5, -14, 3); C(H(e9b923), 22.5, -14, 2.3); cv_fill(H(e0242e)); star5(22.5, -14, 1.5, 0); R(H(fff3a8), 21.4, -15.4, 0.7, 0.7);
   }
   else if (!strcmp(k, "roundel")) {
     C(H(14101f), 22.5, -14, 4.4); C(H(f1ecf7), 22.5, -14, 3.6);
@@ -422,6 +522,32 @@ static void drawGear2(const char *k) {
       cv_move(sx, sy); cv_line(sx + 2.4, sy - 1.6 + i * 1.1 - kk); cv_line(sx + 3.2, sy - 0.4 + i * 1.3); cv_stroke(H(14101f), 0.6);
     }
     C(H(14101f), sx, sy + 0.6, 1.9); C(H(14101f), sx, sy - 1.2, 1.2); R(H(ff3a3a), sx - 0.7, sy - 1.5, 0.5, 0.5); R(H(ff3a3a), sx + 0.2, sy - 1.5, 0.5, 0.5); R(H(ff8a1f), sx - 0.4, sy + 0.4, 0.8, 1);
+  }
+  else if (!strcmp(k, "heartshades")) {                         // Sweetheart: heart-shaped pink sunglasses
+    cv_fill(H(14101f)); F(14.6, -37.6, 4, 0.9); heart(20.6, -36.9, 2.5); heart(24.6, -36.9, 1.6);
+    cv_fill(H(ff3ea5)); heart(20.6, -36.9, 1.8); cv_fill(H(d02a86)); heart(24.6, -36.9, 1);
+    R(rgba(255, 255, 255, .8), 19.4, -38, 0.9, 0.9);
+  }
+  else if (!strcmp(k, "headphones")) {                          // big studio headphones over the cap
+    A(H(2a2236), 1.5, 15, -36.4, 6.4, PI * 1.08, PI * 1.9); A(H(5e5a76), 0.5, 15, -36.4, 6.6, PI * 1.2, PI * 1.6);
+    E(H(14101f), 12.6, -35.6, 2.3, 3.2, 0.15, 0, 7); E(H(e0242e), 12.8, -35.6, 1.6, 2.5, 0.15, 0, 7); R(H(ff8a8a), 12.2, -37.4, 0.8, 1.2);
+  }
+  else if (!strcmp(k, "parrot")) {                              // a red parrot riding on his shoulder, bobbing its head
+    double b = sin(T * 4) * 0.5, fl = fmod(T, 3) < 0.3 ? sin(T * 40) * 1.2 : 0;
+    cv_fill(H(2a7ae0)); POLY(1.4, -31, -3.6, -24, -2, -23.6, 3, -30);
+    E(H(e0242e), 3, -33, 2.2, 3.4, 0.35, 0, 7); C(H(e0242e), 4.4, -37 + b, 1.9);
+    cv_fill(H(ffd21f)); POLY(1.2, -34.4, -1.4, -31 + fl, 2.6, -31.4);
+    cv_fill(H(2a7ae0)); POLY(1.6, -33.4, -0.8, -30 + fl, 2.8, -30.6);
+    C(H(f1ecf7), 5.2, -37.4 + b, 0.9); R(H(14101f), 5.2, -37.8 + b, 0.6, 0.6);
+    cv_fill(H(3a3448)); POLY(5.8, -36.8 + b, 7.6, -36 + b, 6.2, -34.8 + b);
+    R(H(8d8fa8), 2.4, -29.8, 0.6, 1); R(H(8d8fa8), 3.6, -29.8, 0.6, 1);
+  }
+  else if (!strcmp(k, "balloon")) {                             // a red balloon tied to the handlebar, bobbing on the wind
+    double sw = sin(T * 1.8) * 1.4, bob = sin(T * 2.3) * 0.8, bx = 33 + sw, by = -50 + bob;
+    cv_begin(); cv_move(28.4, -26.4); cv_quad(31 - sw, -36, bx, by + 4.6); cv_stroke(rgba(241, 236, 247, .85), 0.4);
+    E(H(e0242e), bx, by, 3.4, 4.2, sw * 0.04, 0, 7);
+    cv_fill(H(a81a16)); POLY(bx - 0.8, by + 4.8, bx + 0.8, by + 4.8, bx, by + 3.8);
+    R(rgba(255, 255, 255, .7), bx - 1.8, by - 2.6, 1, 1.8);
   }
   else if (!strcmp(k, "watch")) {
     cv_begin(); cv_move(5, -26); cv_quad(4, -21, 8.4, -19.6); cv_stroke(H(ffd21f), 0.6);
@@ -574,6 +700,35 @@ static void drawCane(const char *k) {
     cv_fill(H(c98a1f)); F(-12.6, -39.6, 2.8, 1.4); F(-13.6, -38.2, 4.8, 1); C(H(fff3a8), -12.4, -43.4, 0.9);
     R(rgba(255, 255, 255, 0.5 + 0.5 * sin(T * 5)), -9.8, -44.4, 1, 1);
   }
+  else if (!strcmp(k, "wand")) {                                // Sweetheart: a fairy wand, a gold star with a heart in it, sparkles twinkling round
+    L(H(ffb6d5), 1.4, -9, -22, -11, -38); L(H(ffffff), 0.5, -9.4, -24, -10.8, -36);
+    double sw = sin(T * 3) * 0.8;
+    cv_begin(); cv_move(-11, -38); cv_quad(-14, -36, -15 + sw, -32); cv_stroke(H(ff6fae), 0.7);
+    cv_begin(); cv_move(-11, -38); cv_quad(-13, -35, -13.4 + sw, -31); cv_stroke(H(b8e4ff), 0.7);
+    cv_fill(H(a87400)); star5(-11.4, -42, 4.6, 0); cv_fill(H(ffe14a)); star5(-11.4, -42, 3.7, 0); cv_fill(H(ff3ea5)); heart(-11.4, -42.2, 1.2);
+    for (int i = 0; i < 3; i++) if (sin(T * 5 + i * 2.1) > 0.2) {
+      double sx = -11.4 + cos(i * 2.1 + 0.4) * 6, sy = -42 + sin(i * 2.1 + 0.4) * 5; col_t c = i == 1 ? H(b8e4ff) : H(ffffff);
+      R(c, sx - 1, sy, 2.4, 0.5); R(c, sx, sy - 1, 0.5, 2.4);
+    }
+  }
+  else if (!strcmp(k, "laser")) {                               // a laser sword: steel hilt and a pink blade (the web's hum is left out: it's in the sprite)
+    L(rgba(255, 62, 165, .18), 4.6, -9.8, -28, -12.2, -46); L(rgba(255, 62, 165, .35), 2.8, -9.8, -28, -12.2, -46);
+    L(H(ff3ea5), 1.6, -9.8, -28, -12.2, -46); L(H(ffe0f2), 0.6, -9.8, -28, -12.2, -46); C(H(ff3ea5), -12.2, -46, 0.8);
+    L(H(5e5a76), 2.4, -9, -22, -9.8, -28.4); L(H(c8ccd8), 2.4, -9.2, -24.6, -9.4, -26); R(H(e0242e), -10.2, -27, 0.9, 0.9); R(H(14101f), -10.6, -28.6, 2, 0.8);
+  }
+  else if (!strcmp(k, "trident")) {                             // the sea king's gold trident
+    L(H(a87400), 1.8, -9, -22, -11.6, -40); L(H(ffd21f), 0.8, -9.2, -23, -11.4, -39);
+    cv_begin(); cv_move(-14.6, -46.6); cv_quad(-14.6, -40.4, -11.6, -40.2); cv_quad(-8.6, -40.4, -8.8, -46.8); cv_move(-11.6, -40.2); cv_line(-11.8, -48.4); cv_stroke(H(ffd21f), 1);
+    static const double tp[3][2] = { { -14.6, -46.6 }, { -11.8, -48.4 }, { -8.8, -46.8 } };
+    cv_fill(H(ffd21f)); for (int i = 0; i < 3; i++) POLY(tp[i][0] - 1, tp[i][1] + 1, tp[i][0], tp[i][1] - 1.8, tp[i][0] + 1, tp[i][1] + 1);
+    R(H(22e6d8), -12.3, -41.4, 1.4, 1.4); R(H(fff3a8), -12.6, -45, 0.6, 2);
+  }
+  else if (!strcmp(k, "baguette")) {                            // a fresh baguette, scored and golden, in a paper sleeve
+    cv_save(); cv_translate(-10.4, -33); cv_rotate(-0.17);
+    E(H(c47d2a), 0, 0, 1.9, 12.4, 0, 0, 7); E(H(e3a24a), 0.3, 0, 1.2, 11.6, 0, 0, 7);
+    cv_begin(); for (int i = -3; i <= 2; i++) { cv_move(-0.8, i * 3.2 - 1); cv_line(1, i * 3.2 + 0.6); } cv_stroke(H(fff0c8), 0.5);
+    R(H(efe6d0), -2.2, 6, 4.4, 5); R(H(c0242e), -2.2, 7.4, 4.4, 0.7); cv_restore();
+  }
   else if (!strcmp(k, "lollipop")) {
     L(H(f1ecf7), 1.6, -9, -22, -11, -39); C(H(ff3ea5), -11.4, -42.5, 4.6);
     cv_begin(); for (int i = 0; i < 24; i++) { double a = i * 0.45 + T * 1.2, r = 0.4 + i * 0.16; cv_line(-11.4 + cos(a) * r, -42.5 + sin(a) * r); } cv_stroke(H(f1ecf7), 1);
@@ -646,6 +801,46 @@ static void drawCarrier(const char *k) {
     double p = tmod(T * 0.8); if (p < 0.5) { C(H(ffd21f), -8.6, -27.5 + p * 5, 1.5); R(H(fff3a8), -9.1, -28 + p * 5, 0.8, 0.8); }
     A(H(ff7ab0), 0.7, -16, -20.5, 1.2, 0, 5);
   }
+  else if (!strcmp(k, "flowers")) {                             // Sweetheart: a white basket of tulips and daisies with a pink bow
+    double sw = sin(T * 2.2) * 0.4;
+    static const struct { double x, top; col_t c; } FL[5] = { { -13, -27.4, H(ff6fae) }, { -10.4, -29.6, H(ffffff) }, { -7.6, -28.2, H(e0242e) }, { -5, -29.8, H(ffb6d5) }, { -3.4, -27, H(ffffff) } };
+    for (int j = 0; j < 5; j++) {
+      double fx = FL[j].x + sw, top = FL[j].top;
+      L(H(2f8a45), 0.8, FL[j].x, -22, fx, top + 1);
+      if (FL[j].c == H(ffffff)) { for (int i = 0; i < 5; i++) C(H(ffffff), fx + cos(i * 1.257) * 1.2, top + sin(i * 1.257) * 1.2, 0.8); C(H(ffd21f), fx, top, 0.6); }
+      else { cv_fill(FL[j].c); POLY(fx - 1.4, top - 1.4, fx - 0.5, top - 0.4, fx, top - 1.6, fx + 0.5, top - 0.4, fx + 1.4, top - 1.4, fx + 1.2, top + 0.8, fx - 1.2, top + 0.8); }
+    }
+    cv_fill(H(efe6d0)); POLY(-15, -22.6, -2, -22.6, -3.6, -13, -13.4, -13);
+    cv_begin(); for (double y = -20.6; y < -13; y += 2.2) { cv_move(-14.6, y); cv_line(-2.4, y); } cv_stroke(H(c8b898), 0.6);
+    R(H(d8c8a8), -15, -23.2, 13, 1.2);
+    cv_fill(H(ff6fae)); POLY(-8.5, -19, -11.6, -21, -11.6, -17); POLY(-8.5, -19, -5.4, -21, -5.4, -17);
+    R(H(e8336f), -9.2, -19.8, 1.4, 1.6); L(H(ff6fae), 0.7, -9, -18.4, -10.4, -15.4); L(H(ff6fae), 0.7, -8, -18.4, -6.8, -15.4);
+  }
+  else if (!strcmp(k, "fishbowl")) {                            // a goldfish bowl, the fish doing laps and blowing bubbles
+    double fx = -8.5 + sin(T * 1.4) * 2.8, dir = cos(T * 1.4) >= 0 ? 1 : -1;
+    C(rgba(170, 230, 255, .35), -8.5, -19.6, 6.4);
+    cv_save(); cv_begin(); cv_arc(-8.5, -19.6, 6.4, 0, 7); cv_clip();
+    R(rgba(60, 170, 235, .6), -15, -22, 13, 9); R(H(8d8fa8), -15, -14.6, 13, 2); R(H(4fb85a), -11, -17.6, 0.8, 3.4); R(H(4fb85a), -6, -16.8, 0.8, 2.6); cv_restore();
+    E(H(ff8a1f), fx, -18.6, 1.9, 1.2, 0, 0, 7); POLY(fx - dir * 1.4, -18.6, fx - dir * 3, -19.8, fx - dir * 3, -17.4);
+    R(H(14101f), fx + dir * 0.9 - 0.3, -19, 0.6, 0.6);
+    for (int i = 0; i < 2; i++) { double p = tmod(T * 0.7 + i / 2.0); ring(rgba(255, 255, 255, (1 - p) * 0.8), 0.4, fx + dir * 2 + sin(p * 9) * 0.5, -19.6 - p * 4, 0.5 + p * 0.3); }
+    cv_begin(); cv_ellipse(-8.5, -25.4, 3.8, 0.8, 0, 0, 6.2831); cv_stroke(rgba(220, 245, 255, .9), 0.8); R(rgba(255, 255, 255, .7), -13, -22, 0.8, 3);
+  }
+  else if (!strcmp(k, "tv")) {                                  // an old wood-cased TV showing colour bars, rabbit ears up
+    L(H(c8c8d8), 0.5, -8.5, -24.6, -12.4, -30.4); L(H(c8c8d8), 0.5, -8.5, -24.6, -4.2, -29.8); C(H(c8c8d8), -12.4, -30.4, 0.6); C(H(c8c8d8), -4.2, -29.8, 0.6);
+    R(H(7a4a1a), -15, -24.6, 13, 11.6); R(H(9a6228), -15, -24.6, 13, 1); R(H(14101f), -14, -23.4, 9.4, 8);
+    static const col_t bars[7] = { H(f1ecf7), H(ffe14a), H(22e6d8), H(4ad86a), H(ff3ea5), H(e0242e), H(3a6ae0) };
+    for (int i = 0; i < 7; i++) R(bars[i], -13.6 + i * 1.24, -23, 1.24, 6);
+    R(H(14101f), -13.6, -17, 8.7, 1.2); R(H(3a6ae0), -13.6, -17, 2, 1.2); R(H(f1ecf7), -10.6, -17, 2, 1.2);
+    C(H(c8c8d8), -3.4, -21.6, 0.9); C(H(c8c8d8), -3.4, -18.6, 0.9); R(H(3a2410), -14, -14.2, 1.4, 1.2); R(H(3a2410), -4.4, -14.2, 1.4, 1.2);
+  }
+  else if (!strcmp(k, "trunk")) {                               // a steamer trunk covered in travel stickers
+    R(H(5a3018), -15, -24, 13, 11); R(H(7a4422), -15, -24, 13, 2.4); R(H(3a1e0e), -15, -21.8, 13, 0.6);
+    R(H(c9a24a), -15, -24, 0.6, 11); R(H(c9a24a), -2.6, -24, 0.6, 11); R(H(c9a24a), -9.4, -21.6, 1.8, 2.2); R(H(14101f), -8.9, -20.8, 0.8, 0.8);
+    C(H(ff3ea5), -12.4, -17.6, 1.6); R(H(f1ecf7), -13.2, -17.9, 1.6, 0.6); R(H(22e6d8), -7.6, -18.6, 3.2, 2.2); R(H(14101f), -7, -17.8, 2, 0.5);
+    cv_fill(H(ffd21f)); star5(-4.4, -15.2, 1.4, 0.3); R(H(e0242e), -11, -15, 2.6, 1.4);
+    A(H(3a1e0e), 0.8, -8.5, -24, 2.2, PI, 2 * PI);
+  }
   else if (!strcmp(k, "lunch")) {                               // a black dome-top worker's pail: chrome latches, handle, a thermos in the lid
     cv_begin(); cv_move(-12.6, -24.6); cv_line(-12.6, -27.6); cv_line(-4.4, -27.6); cv_line(-4.4, -24.6); cv_stroke(H(c8c8d8), 1);
     E(H(2a2a3a), -8.5, -21.4, 6.5, 4, 0, PI, 2 * PI); R(H(2a2a3a), -15, -21.4, 13, 8.4);
@@ -710,6 +905,28 @@ static void drawCap(const char *k) {
     cv_fill(H(a81a16)); POLY(13, -49.6, 5.6, -47.4 + bob, 9.6, -45, 12, -46.4);
     R(H(f7f4ff), 8.6, -41.8, 13.8, 2.6); cv_circle(5.2, -46.8 + bob, 2.1);
     R(H(d4d0e6), 8.6, -39.6, 13.8, 0.6);
+  } else if (!strcmp(k, "bow")) {                               // Sweetheart: a big polka-dot bow
+    cv_fill(H(e8336f)); POLY(13.6, -43, 11.2, -38.6, 12.8, -38.4, 14.4, -42.4); POLY(15.4, -43, 17.4, -38.8, 18.6, -39.4, 16, -42.4);
+    const double lx[2] = { 11, 18.6 }, lr[2] = { -0.45, 0.45 };
+    for (int i = 0; i < 2; i++) { E(H(e8336f), lx[i], -44.4, 4.2, 2.8, lr[i], 0, 7); E(H(ff6fae), lx[i], -44.6, 3.4, 2.1, lr[i], 0, 7); }
+    static const double dots[6][2] = { { 9.4, -45.4 }, { 11.6, -43.6 }, { 12.4, -46.2 }, { 17.4, -46 }, { 18.4, -43.6 }, { 20.4, -45 } };
+    cv_fill(H(ffffff)); for (int i = 0; i < 6; i++) F(dots[i][0], dots[i][1], 0.9, 0.9);
+    E(H(e8336f), 14.8, -43.8, 1.8, 2.1, 0, 0, 7); R(H(ffa2c8), 14.2, -44.8, 0.8, 0.8);
+  } else if (!strcmp(k, "helmet")) {                            // a red racing helmet, visor flipped up
+    E(H(e0242e), 15.2, -37.6, 6.8, 6.6, 0, PI * 0.85, PI * 2.05);
+    A(H(f1ecf7), 1.2, 15.2, -37.6, 4.6, PI * 1.08, PI * 1.85);
+    R(H(14101f), 9, -35.4, 3.6, 2.4); cv_fill(rgba(40, 200, 255, .9)); POLY(17, -42.6, 23.4, -41.6, 23, -39.6, 17.4, -40.4);
+    R(rgba(255, 255, 255, .7), 18.6, -42, 2.4, 0.6); R(H(ffd21f), 11, -42.6, 1.4, 1.4);
+  } else if (!strcmp(k, "tricorn")) {                           // a pirate captain's tricorn with gold braid and a skull
+    E(H(241e2e), 15.5, -41, 5.2, 4.4, 0, PI, 2 * PI);
+    cv_fill(H(1a1622)); POLY(5.6, -39.4, 25.6, -39.4, 23.4, -44.6, 15.5, -41.8, 7.6, -45);
+    cv_begin(); cv_move(5.6, -39.4); cv_line(7.6, -45); cv_line(15.5, -41.8); cv_line(23.4, -44.6); cv_line(25.6, -39.4); cv_stroke(H(e9b923), 0.7);
+    C(H(f1ecf7), 15.5, -43.4, 1.2); F(14.9, -42.6, 1.2, 0.9); cv_fill(H(14101f)); F(14.9, -43.8, 0.5, 0.5); F(15.7, -43.8, 0.5, 0.5);
+  } else if (!strcmp(k, "halo")) {                              // a golden halo floating over his bald head
+    double b = sin(T * 3) * 0.7;
+    cv_begin(); cv_ellipse(15, -47 + b, 6, 1.6, 0, 0, 6.2831); cv_stroke(rgba(255, 240, 150, .35), 3); cv_stroke(H(ffe14a), 1.1);
+    cv_begin(); cv_ellipse(15, -47.4 + b, 5.4, 1.1, 0, PI * 1.1, PI * 1.7); cv_stroke(H(fff6c8), 0.4);
+    if (tmod(T * 0.8) < 0.15) { cv_fill(H(ffffff)); F(19.6, -49.4 + b, 0.7, 2.2); F(18.9, -48.7 + b, 2.2, 0.7); }
   } else if (!strcmp(k, "crown")) {
     cv_fill(H(a87400)); POLY(8.6, -39.4, 8.4, -46.6, 12, -43.4, 15, -48, 18, -43.4, 21.6, -46.6, 21.4, -39.4);
     cv_fill(H(ffd21f)); POLY(9.4, -39.8, 9.2, -45.2, 12.2, -42.4, 15, -46.6, 17.8, -42.4, 20.8, -45.2, 20.6, -39.8);
@@ -728,7 +945,8 @@ static void drawSpecs(void) { cv_stroke_rect(18.5, -37.5, 3, 3, H(14101f), 1); R
 /* ---------- the Cat Pal cane: a black cat that lounges on top of his carrier, hops onto his back for a ride, then hops back ---------- */
 static double carrierTop(void) {
   static const struct { const char *k; double y; } TOPS[] = { { "", -28 }, { "paperbag", -29.5 }, { "crate", -26 }, { "wicker", -26 }, { "pizza", -31.5 }, { "toolbox", -27.5 },
-    { "cooler", -26 }, { "guitar", -34.5 }, { "duffel", -27.5 }, { "chest", -28 }, { "boombox", -27 }, { "lunch", -27 } };
+    { "cooler", -26 }, { "guitar", -34.5 }, { "duffel", -27.5 }, { "chest", -28 }, { "boombox", -27 }, { "lunch", -27 },
+    { "flowers", -30 }, { "fishbowl", -26.4 }, { "tv", -25 }, { "trunk", -24.6 } };
   for (unsigned i = 0; i < sizeof TOPS / sizeof *TOPS; i++) if (IS(SL_CARRIER, TOPS[i].k)) return TOPS[i].y;
   return -28;
 }
@@ -805,7 +1023,7 @@ static void buildPhase(int p) {                                 // the frame as 
   T = t;
 }
 void look_prebuild(void) { if (phases()) for (int p = 0; p < NPH; p++) buildPhase(p); }
-int look_count(int slot) { int n = 0; if (slot >= 0 && slot < NSLOT) while (n < 20 && ITEMS[slot][n]) n++; return n; }
+int look_count(int slot) { int n = 0; if (slot >= 0 && slot < NSLOT) while (n < 24 && ITEMS[slot][n]) n++; return n; }
 const char *look_item(int slot, int i) { return i >= 0 && i < look_count(slot) ? ITEMS[slot][i] : ""; }
 int look_spr(void) { return phases() && phCur >= 0 && phBuilt[phCur] ? SPR_PH0 + phCur : SPR_BIKE; }
 void look_frame(void) {
@@ -833,16 +1051,16 @@ void look_set(int slot, const char *id) {
   snprintf(cur[slot], sizeof cur[slot], "%s", look_known(slot, id) ? id : "");
   if (slot == SL_PAINT) { tank1 = H(ffd21f); tank2 = H(ff5a1f); for (unsigned i = 0; i < sizeof PAINTS / sizeof *PAINTS; i++) if (IS(SL_PAINT, PAINTS[i].id)) { tank1 = PAINTS[i].a; tank2 = PAINTS[i].b; } }
   if (slot == SL_COAT) { CO = COATS; for (unsigned i = 0; i < sizeof COATS / sizeof *COATS; i++) if (IS(SL_COAT, COATS[i].id)) CO = &COATS[i]; }
-  static const char *const capLive[] = { "propeller", "laurel", "pumpkin", "santa", "crown", NULL };
-  static const char *const gearStill[] = { "", "shades", "goggles", "bowtie", NULL };
-  static const char *const coatAnim[] = { "purple", "disco", "flame", NULL }, *const paintAnim[] = { "holo", "gold", "goldenhour", "money", NULL };
-  static const char *const decalAnim[] = { "sun", "batmoon", NULL }, *const carrierAnim[] = { "cauldron", "chest", "boombox", "piggy", NULL };
-  static const char *const caneAnim[] = { "golden", "neon", "broom", "wizard", "fishing", "bouquet", "trophy", "lollipop", NULL };
+  static const char *const capLive[] = { "propeller", "laurel", "pumpkin", "santa", "crown", "halo", NULL };
+  static const char *const gearStill[] = { "", "shades", "goggles", "bowtie", "heartshades", "headphones", NULL };
+  static const char *const coatAnim[] = { "purple", "disco", "flame", NULL }, *const paintAnim[] = { "holo", "gold", "goldenhour", "money", "cotton", NULL };
+  static const char *const decalAnim[] = { "sun", "batmoon", NULL }, *const carrierAnim[] = { "cauldron", "chest", "boombox", "piggy", "flowers", "fishbowl", NULL };
+  static const char *const caneAnim[] = { "golden", "neon", "broom", "wizard", "fishing", "bouquet", "trophy", "lollipop", "wand", NULL };
   fRims = *cur[SL_RIMS] && !IS(SL_RIMS, "white");
   fCap = any(SL_CAP, capLive);
   fGear = *cur[SL_GEAR] && (!any(SL_GEAR, gearStill) || fCap);   // gear sits over the specs, so it goes live with a live hat
   fCat = IS(SL_CANE, "cat");
-  static const char *const rimsTurn[] = { "web", "spokes", "pizza", "vinyl", NULL };
+  static const char *const rimsTurn[] = { "web", "spokes", "pizza", "vinyl", "hearts", "donut", "saw", "galaxy", NULL };
   wheelSpr = any(SL_RIMS, rimsTurn);
   fAnim = any(SL_COAT, coatAnim) || any(SL_PAINT, paintAnim) || any(SL_DECAL, decalAnim) || any(SL_CARRIER, carrierAnim) || any(SL_CANE, caneAnim)
        || (!fCap && (fGear || fCat));                           // moving gear and the Cat Pal go into the animation frames
@@ -869,7 +1087,8 @@ static void emitTrail(double dt, Emit *e) {
   }
   // sparks and flames at about half the web's rate, for the Old 3DS
   double rate = !strcmp(k, "sparks") ? 60 : !strcmp(k, "flames") ? 80 + 30 * e->thr : !strcmp(k, "gold") ? 34 : !strcmp(k, "lines") ? 38 : !strcmp(k, "coins") ? 26
-              : !strcmp(k, "bubbles") ? 22 : !strcmp(k, "smoke") ? 7 : !strcmp(k, "bats") ? 7 : !strcmp(k, "snow") ? 34 : 0;
+              : !strcmp(k, "bubbles") ? 22 : !strcmp(k, "smoke") ? 7 : !strcmp(k, "bats") ? 7 : !strcmp(k, "snow") ? 34
+              : !strcmp(k, "hearts") ? 14 : !strcmp(k, "petals") ? 20 : !strcmp(k, "notes") ? 9 : !strcmp(k, "stardust") ? 24 : 0;   // hearts and stardust under the web's 20 and 40
   *e->acc += dt * rate;
   while (*e->acc >= 1) {
     *e->acc -= 1;
@@ -897,6 +1116,19 @@ static void emitTrail(double dt, Emit *e) {
     } else if (!strcmp(k, "snow")) {
       p->x = wx - 14 * B - R() * 14; p->y = gy - 6 - R() * 24; p->vx = e->P * (0.6 + R() * 0.25); p->vy = 8 + R() * 18; p->life = 1.0 + R() * 0.4; p->max = 1.4;
       p->c = H(ffffff); p->s = R() < 0.3 ? 2 : 1; p->ph = R() * 6; p->kind = PK_FLAKE;
+    } else if (!strcmp(k, "hearts")) {
+      double sz = R(); p->x = wx - 18 * B - R() * 8; p->y = gy - 10 - R() * 16; p->vx = e->P * (0.5 + R() * 0.25); p->vy = -(14 + R() * 16); p->life = p->max = 1.2;
+      p->c = R() < 0.5 ? H(ff3ea5) : R() < 0.6 ? H(ff8ac0) : H(e0242e); p->s = sz < 0.35 ? 7 : sz < 0.75 ? 5 : 3; p->ph = R() * 6; p->kind = PK_HEART;
+    } else if (!strcmp(k, "petals")) {
+      p->x = wx - 14 * B - R() * 14; p->y = gy - 8 - R() * 24; p->vx = e->P * (0.55 + R() * 0.3); p->vy = 6 + R() * 14; p->life = 1.2 + R() * 0.4; p->max = 1.6;
+      p->c = R() < 0.5 ? H(ffc0dc) : R() < 0.7 ? H(ff9ac8) : H(ffffff); p->s = 2; p->ph = R() * 6; p->kind = PK_PETAL;
+    } else if (!strcmp(k, "notes")) {                           // s is 1 for a crotchet, 2 for a quaver
+      static const col_t nc[4] = { H(22e6d8), H(ff3ea5), H(ffe14a), H(f1ecf7) };
+      p->x = wx - 20 * B - R() * 6; p->y = gy - 12 - R() * 14; p->vx = e->P * (0.5 + R() * 0.2); p->vy = -(16 + R() * 12); p->life = p->max = 1.4;
+      p->c = nc[(int)(R() * 4) & 3]; p->s = R() < 0.5 ? 1 : 2; p->ph = R() * 6; p->kind = PK_NOTE;
+    } else if (!strcmp(k, "stardust")) {
+      p->x = ex - R() * 3; p->y = ey + (R() - 0.5) * 4; p->vx = e->P * (0.68 + R() * 0.12); p->vy = (R() - 0.5) * 18; p->life = 0.5 + R() * 0.4; p->max = 0.9;
+      p->c = H(ffffff); p->s = R() < 0.2 ? 2 : 1; p->ph = R() * 6; p->kind = PK_STAR;
     } else {                                                    // smoke rings
       p->x = ex; p->y = ey - 1; p->vx = e->P * (0.6 + R() * 0.1); p->vy = -(16 + R() * 10); p->life = p->max = 1.0;
       p->c = R() < 0.5 ? H(f1ecf7) : H(c8c4d8); p->s = 4; p->kind = PK_RING; p->grow = 12;
