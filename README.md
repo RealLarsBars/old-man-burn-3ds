@@ -24,6 +24,17 @@ with custom firmware:
 Sound needs the DSP firmware dump that most homebrew needs (`sdmc:/3ds/dspfirm.cdc`, made with DSP1). Without it the
 game runs silently.
 
+### Updates over Wi-Fi
+
+After that first install the game keeps itself up to date. At start it asks the game server
+(`GET /api/3ds/update`, which reads this repo's newest release) whether there's a newer build. If there is, the title
+screen offers it (and START opens the offer later): the `.cia` build downloads the new `.cia`, installs it over itself
+and restarts; the `.3dsx` build writes the new `.3dsx` over its own file. It only runs from the menus, never during a
+ride, and a download that fails or is stopped leaves the game as it was. Settings shows which build you're on.
+
+The release number (`build-N`) is compiled in as `BUILD_NUM` and is the `.cia`'s title version, so each release
+installs over the one before. Local builds (`BUILD_NUM` 0) never offer updates.
+
 ## Controls
 
 | | |
@@ -124,6 +135,7 @@ citro3d and citro2d).
 ```sh
 make            # OldManBurn.3dsx
 make cia        # OldManBurn.cia as well: needs bannertool and makerom on the PATH
+make BUILD_NUM=25 && make cia BUILD_NUM=25   # as CI does: a build that knows its release number
 ```
 
 `bannertool` (github.com/carstene1ns/3ds-bannertool) and `makerom` (github.com/3DSGuy/Project_CTR) both build with

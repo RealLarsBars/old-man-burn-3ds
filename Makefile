@@ -54,6 +54,11 @@ CFLAGS	:=	-g -Wall -O2 -std=gnu11 -mword-relocations \
 
 CFLAGS	+=	$(INCLUDE) -D__3DS__
 
+# the release number (CI passes github.run_number, which names the release build-N); 0 = a local build that never
+# offers updates. It's also the .cia's title version, so each release installs over the one before.
+BUILD_NUM ?= 0
+CFLAGS	+=	-DBUILD_NUM=$(BUILD_NUM)
+
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 
 ASFLAGS	:=	-g $(ARCH)
@@ -161,7 +166,7 @@ all:
 cia: all
 	@bannertool makebanner -i meta/banner.png -a meta/banner.wav -o $(BUILD)/banner.bnr
 	@bannertool makesmdh -s "$(APP_TITLE)" -l "$(APP_DESCRIPTION)" -p "$(APP_AUTHOR)" -i $(ICON) -o $(BUILD)/icon.icn
-	@makerom -f cia -o $(TARGET).cia -elf $(TARGET).elf -rsf meta/app.rsf -icon $(BUILD)/icon.icn -banner $(BUILD)/banner.bnr -exefslogo -target t
+	@makerom -f cia -o $(TARGET).cia -elf $(TARGET).elf -rsf meta/app.rsf -icon $(BUILD)/icon.icn -banner $(BUILD)/banner.bnr -exefslogo -target t -ver $(BUILD_NUM)
 	@echo built ... $(TARGET).cia
 
 #---------------------------------------------------------------------------------

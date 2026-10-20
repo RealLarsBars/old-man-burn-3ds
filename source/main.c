@@ -15,6 +15,7 @@
 #include "ach.h"
 #include "sync.h"
 #include "replay.h"
+#include "update.h"
 #include <citro3d.h>
 
 #define H(x) RGB(0x##x)
@@ -24,7 +25,7 @@ static char trackName[64];
 static bool optMusic = true, optSfx = true; static int tzOff = 0;   // hours the console clock is ahead of Pacific time
 static int dpadPct = 100, touchPct = 100;                       // steering sensitivity, percent (Settings sliders)
 static int volPct = 100;                                         // sound volume, percent (Settings slider)
-enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE, UI_CODE, UI_BOARD };
+enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE, UI_CODE, UI_BOARD, UI_UPDATE };
 static int screen = UI_TITLE, backTo = UI_TITLE;                // which menu the bottom screen shows (rides use st)
 static int capturing = -1;                                       // the control (BIND_*) waiting for a button press
 static int archSel, archTop;                                     // the old-maps list: highlighted week and scroll
@@ -254,9 +255,39 @@ static void bottomTitle(void) {
   else if (!sync_linked()) snprintf(line, sizeof line, "Daily Dash: link to Discord in Settings to ride it");
   else snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: needs Wi-Fi to check your tries", b);
   ui_text(line, 14, 184, 8, UI_CYAN, AL_LEFT);
+  if (update_newer()) { snprintf(line, sizeof line, "A new version is out (build %d). START to update", update_newer()); ui_text(line, 14, 198, 8, UI_GOLD, AL_LEFT); return; }
   snprintf(line, sizeof line, "Hold %s to go · %s / %s or drag to steer", keyName(binds[BIND_GO]), keyName(binds[BIND_UP]), keyName(binds[BIND_DOWN]));
   ui_text(line, 14, 198, 8, UI_SUB, AL_LEFT);
 }
+/* ---------- updating over Wi-Fi (update.c), only ever from the title screen ---------- */
+enum { U_GO, U_LATER };
+static void bottomUpdate(void) {
+  ui_panel();
+  float pr; const char *msg; int s = update_state(&pr, &msg);
+  char b[96];
+  ui_kicker("UPDATE", 14, 20, UI_PINK);
+  if (s == UP_DONE) {
+    ui_heading("ALL SET", 14, 58, 26, AL_LEFT);
+    ui_wrap(update_is_cia() ? "The new version is installed. Restart and you're on it." : "The new version is saved. Close the game and open it again from the Homebrew Launcher.", 14, 76, 10, UI_BONE, 290);
+    ui_button((Box){ 14, 150, 290, 40 }, update_is_cia() ? "RESTART" : "CLOSE", BTN_RED, 16);
+    return;
+  }
+  snprintf(b, sizeof b, "BUILD %d IS OUT", update_newer());
+  ui_heading(b, 14, 58, fitDisp(b, 22, 290), AL_LEFT);
+  snprintf(b, sizeof b, "You have build %d. It downloads over Wi-Fi and installs itself.", BUILD_NUM);
+  ui_wrap(b, 14, 76, 10, UI_BONE, 290);
+  if (s == UP_DOWNLOADING) {
+    cv_fill(UI_INK2); cv_rect(14, 130, 290, 14); cv_fill(UI_CYAN); cv_rect(14, 130, 290 * pr, 14);
+    snprintf(b, sizeof b, "Downloading... %d%%   B stops", (int)(pr * 100)); ui_text(b, 14, 160, 9, UI_CYAN, AL_LEFT);
+    ui_text("Leave the console on. Your saves and scores stay put.", 14, 176, 8, UI_SUB, AL_LEFT);
+    return;
+  }
+  if (s == UP_FAILED) ui_wrap(msg, 14, 118, 9, UI_PINK, 290);
+  ui_button((Box){ 14, 150, 186, 38 }, s == UP_FAILED ? "TRY AGAIN" : "UPDATE NOW", BTN_RED, 13);
+  ui_button((Box){ 212, 150, 92, 38 }, "LATER", BTN_ALT, 12);
+  ui_text("Your saves, scores and Discord link stay as they are.", 14, 204, 8, UI_SUB, AL_LEFT);
+}
+
 static void bottomArchive(void) {
   cv_fill(H(150c26)); cv_rect(0, 0, 320, 240);
   ui_heading("OLD MAPS", 14, 30, 22, AL_LEFT);
@@ -632,6 +663,8 @@ static void bottomSettings(void) {
   cv_fill(rgba(10, 6, 18, .97)); cv_rect(0, 0, 320, 240);
   cv_stroke_rect(4.5, 4.5, 311, 231, UI_PINK, 1);
   ui_kicker("SETTINGS", 14, 18, UI_PINK);
+  { char bn[24]; if (BUILD_NUM) snprintf(bn, sizeof bn, "build %d", BUILD_NUM); else snprintf(bn, sizeof bn, "local build");
+    ui_text(bn, 306, 18, 7, UI_DIM, AL_RIGHT); }
   char v[48];
   for (int i = 0; i < S_CLOSE; i++) {
     double y = rowY(i);
@@ -681,6 +714,7 @@ static void bottomSettings(void) {
 }
 
 /* ---------- what the buttons do ---------- */
+static void openUpdate(void) { screen = UI_UPDATE; ui_reset_focus(); }
 static void openSettings(void) { backTo = screen; screen = UI_SETTINGS; capturing = -1; ui_reset_focus(); }
 static void toggleSound(void) { bool on = !(optMusic || optSfx); optMusic = optSfx = on; audio_set(optMusic, optSfx); save(); }
 static void ridePicked(int m) { enterMode(m); startRun(); }
@@ -705,13 +739,14 @@ static void settingsAdjust(int row, int d) {
   audio_set(optMusic, optSfx); audio_volume(volPct);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
   osSetSpeedupEnable(true);                                      // New 3DS: the faster clock and the extra cache
   gfx_init();
   srand((unsigned)osGetTime());
   load();
   ach_load(); ach_bests(bests, nbests);
   sync_init();
+  update_init(argc > 0 ? argv[0] : NULL);
   draw_init();
   gfx_build(draw_sprites);
   audio_init(); audio_set(optMusic, optSfx); audio_volume(volPct);
@@ -777,8 +812,14 @@ int main(void) {
     } else if (st == ST_TITLE && dailyAsking) {                   // waiting on the Daily Dash try: B stops waiting
       if (kd & KEY_B) { sync_daily_cancel(); dailyAsking = false; }
       kd = 0;
+    } else if (st == ST_TITLE && screen == UI_UPDATE) {
+      int us = update_state(NULL, NULL);
+      if (kd & KEY_B) { if (us == UP_DOWNLOADING) update_cancel(); else if (us != UP_DONE) { screen = UI_TITLE; ui_reset_focus(); } }
+      if (us == UP_DOWNLOADING) kd = 0;
+      kd &= ~(KEY_B | KEY_START | KEY_SELECT);
     } else if (st == ST_TITLE) {
       if (kd & KEY_SELECT) openSettings();
+      if ((kd & KEY_START) && update_newer()) openUpdate();
       if (kd & KEY_R) dailyPicked();
     } else if (simWatch) {                                       // watching a board run: B (or START) stops
       if (kd & (KEY_B | KEY_START)) endWatch(false);
@@ -811,6 +852,8 @@ int main(void) {
     perf_mark(PF_SIM);
     sync_tick(menus || st == ST_OVER); perf_mark(PF_SYNC);
     if (dailyAsking) dailyAnswer();
+    { static bool offered;                                         // a newer build: offer it once, on the title screen
+      if (!offered && update_newer() && st == ST_TITLE && screen == UI_TITLE && !dailyAsking) { offered = true; openUpdate(); } }
     if (watchLoading) {                                            // the board run asked for has come in (or couldn't)
       Watched *w; const char *msg; int r = sync_watch_poll(&w, &msg);
       if (r) watchLoading = false;
@@ -847,6 +890,7 @@ int main(void) {
     else if (shown == UI_CODE) bottomCode();
     else if (shown == UI_BOARD) bottomBoard();
     else if (shown == UI_TITLE) bottomTitle();
+    else if (shown == UI_UPDATE) bottomUpdate();
     else if (simWatch) bottomWatch();
     else if (st == ST_OVER) bottomOver();
     else bottomPlay(touchY);
@@ -878,6 +922,11 @@ int main(void) {
         else if (p == T_GARAGE) openGarage();
         else if (p == T_SETTINGS) openSettings();
         else if (p == T_SOUND) toggleSound();
+      } else if (shown == UI_UPDATE) {
+        int us = update_state(NULL, NULL);
+        if (us == UP_DONE) { update_restart(); break; }             // closes the game (the .cia starts again by itself)
+        else if (p == U_GO) update_start();
+        else if (p == U_LATER) { screen = UI_TITLE; ui_reset_focus(); }
       } else if (shown == UI_CODE) {
         if (p == 0) { screen = backTo; ui_reset_focus(); }
       } else if (shown == UI_BOARD) {
@@ -901,6 +950,7 @@ int main(void) {
     }
   }
   save();
+  update_exit();
   sync_exit();
   audio_exit();
   gfx_exit();
