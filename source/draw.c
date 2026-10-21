@@ -956,6 +956,8 @@ static void drawCrashFX(void) {
   cv_alpha(1);
 }
 // particles; the trails' kinds get their own little sprites, everything else is a square
+const char *const HEART_PX[4] = { "XX.XX", "XXXXX", ".XXX.", "..X.." };   // shared by the Sweetheart knit and the heart trail
+const char *const HEART_BIG[6] = { ".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..." };
 void draw_parts(const Part *ps, int n, double camX) {
   for (int i = 0; i < n; i++) {
     const Part *p = &ps[i];
@@ -987,6 +989,26 @@ void draw_parts(const Part *ps, int n, double camX) {
       int s = (int)fmax(1, rnd(p->s * (0.4 + 0.6 * k)));
       cv_alpha(0.3 * k); R(x - (s >> 1) - 1, y - (s >> 1) - 1, s + 2, s + 2, H(ff6a1f));
       cv_alpha(1); R(x - (s >> 1), y - (s >> 1), s, s, k > 0.75 ? H(fff6c8) : k > 0.5 ? H(ffd21f) : k > 0.28 ? H(ff8a1f) : H(e0242e)); break; }
+    case PK_HEART: {                                            // a pixel heart that floats up, wobbling and fading
+      double xx = x + rnd(sin(T * 4 + p->ph) * 1.5); cv_alpha(fmin(1, k * 1.8));
+      if (p->s > 3) {
+        bool big = p->s > 5; const char *const *hp = big ? HEART_BIG : HEART_PX; int rows = big ? 6 : 4, len = big ? 7 : 5, o = len >> 1;
+        for (int r = 0; r < rows; r++) for (int c = 0, a = -1; c <= len; c++) {
+          if (c < len && hp[r][c] == 'X') { if (a < 0) a = c; } else if (a >= 0) { F(xx - o + a, y - 2 + r, c - a, 1); a = -1; }
+        }
+        R(xx - o + big, y - 2 + big, 1, 1, H(ffffff));
+      } else { F(xx - 1, y - 1, 1, 1); F(xx + 1, y - 1, 1, 1); F(xx - 1, y, 3, 1); F(xx, y + 1, 1, 1); }
+      break; }
+    case PK_PETAL: {                                            // a blossom petal tumbling: it flips between a sliver and a full petal
+      double xx = x + rnd(sin(T * 3 + p->ph) * 2.5); int w = fabs(sin(T * 5 + p->ph)) > 0.5 ? 2 : 1;
+      cv_alpha(fmin(1, k * 1.6)); F(xx, y, w, 2); if (w > 1) F(xx + 2, y + 1, 1, 1); break; }
+    case PK_NOTE: {                                             // a music note: head and stem, a flag on the quavers, swaying as it rises
+      double xx = x + rnd(sin(T * 3 + p->ph) * 2); cv_alpha(fmin(1, k * 1.6));
+      F(xx, y + 3, 2, 2); F(xx + 2, y - 2, 1, 6); if (p->s > 1) { F(xx + 3, y - 2, 2, 1); F(xx + 4, y - 1, 1, 2); } break; }
+    case PK_STAR:                                               // comet dust: white sparks cooling to cyan and violet, the brightest ones twinkle
+      cv_alpha(fmin(1, k * 1.5)); cv_fill(k > 0.6 ? H(ffffff) : k > 0.3 ? H(7df9ff) : H(a35bff)); F(x, y, p->s, p->s);
+      if (p->s > 1 && sin(T * 12 + p->ph) > 0.3) { F(x - 1, y + 0.5, p->s + 2, 1); F(x + 0.5, y - 1, 1, p->s + 2); }
+      break;
     case PK_SPARK:                                              // a spark: a short streak along its flight
       cv_alpha(fmin(1, k * 2)); F(x, y, p->s + 2, p->s); cv_alpha(fmin(1, k * 2) * 0.4); F(x + p->s + 2, y, 2, 1); break;
     default:
