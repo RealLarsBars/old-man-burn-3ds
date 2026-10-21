@@ -57,22 +57,25 @@ static int lastScore, prevBest; static bool newBest; static const char *causeTxt
 #define SAVE_DIR "sdmc:/3ds/oldmanburn"
 #define SAVE_FILE SAVE_DIR "/save.txt"
 static Best bests[512]; static int nbests;
+static int lastBuild = -1; static bool justUpdated;            // the build that last saved (0: one from before this line); a new one this launch
 static int bestOf(int seed) { for (int i = 0; i < nbests; i++) if (bests[i].seed == seed) return bests[i].best; return 0; }
 static void save(void) {
   mkdir("sdmc:/3ds", 0777); mkdir(SAVE_DIR, 0777);
   FILE *f = fopen(SAVE_FILE, "w"); if (!f) return;
   fprintf(f, "music %d\nsfx %d\ntz %d\ngo %d\nup %d\ndown %d\ndpad %d\ntouch %d\nvolume %d\n", optMusic, optSfx, tzOff, (int)binds[0], (int)binds[1], (int)binds[2],
     dpadPct, touchPct, volPct);
+  fprintf(f, "build %d\n", BUILD_NUM);
   for (int i = 0; i < nbests; i++) fprintf(f, "best %d %d\n", bests[i].seed, bests[i].best);
   fclose(f);
 }
 static void load(void) {
   FILE *f = fopen(SAVE_FILE, "r"); if (!f) return;
-  char k[16]; int a, b;
+  char k[16]; int a, b; lastBuild = 0;
   while (fscanf(f, "%15s %d", k, &a) == 2) {
     if (!strcmp(k, "best") && fscanf(f, "%d", &b) == 1) { if (nbests < 512) bests[nbests++] = (Best){ a, b }; }
     else if (!strcmp(k, "music")) optMusic = a; else if (!strcmp(k, "sfx")) optSfx = a; else if (!strcmp(k, "tz")) tzOff = a;
     else if (!strcmp(k, "dpad")) dpadPct = a < 50 ? 50 : a > 200 ? 200 : a; else if (!strcmp(k, "touch")) touchPct = a < 50 ? 50 : a > 200 ? 200 : a;
+    else if (!strcmp(k, "build")) lastBuild = a;
     else if (!strcmp(k, "volume")) volPct = a < 50 ? 50 : a > 200 ? 200 : a;
     else for (int i = 0; i < 3; i++) if (!strcmp(k, (const char *[]){ "go", "up", "down" }[i]) && validKey((u32)a)) binds[i] = (u32)a;
   }
@@ -137,7 +140,7 @@ static void leftMidRide(APT_HookType hook, void *param) {
 }
 static void startRun(void) {
   if (st == ST_OVER) { reseed(curSeed, mode == MODE_DAILY || curSeed >= V2_FROM); }
-  newRun(); st = ST_PLAY;
+  newRun(); st = ST_PLAY; justUpdated = false;
   perf_ride_start(trackName, curSeed); ach_run_start();
   rec_start(curSeed, mode == MODE_DAILY ? RM_DAILY : mode == MODE_OLD ? RM_OLD : RM_WEEK);
 #ifdef DEVTEST                                                     // test builds: start far down the road, ride through everything
@@ -255,6 +258,7 @@ static void bottomTitle(void) {
   else if (!sync_linked()) snprintf(line, sizeof line, "Daily Dash: link to Discord in Settings to ride it");
   else snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: needs Wi-Fi to check your tries", b);
   ui_text(line, 14, 184, 8, UI_CYAN, AL_LEFT);
+  if (justUpdated && !update_newer()) { snprintf(line, sizeof line, "Updated to build %d over Wi-Fi. Enjoy, sonny.", BUILD_NUM); ui_text(line, 14, 198, 8, UI_CYAN, AL_LEFT); return; }
   if (update_newer()) { snprintf(line, sizeof line, "A new version is out (build %d). START to update", update_newer()); ui_text(line, 14, 198, 8, UI_GOLD, AL_LEFT); return; }
   snprintf(line, sizeof line, "Hold %s to go · %s / %s or drag to steer", keyName(binds[BIND_GO]), keyName(binds[BIND_UP]), keyName(binds[BIND_DOWN]));
   ui_text(line, 14, 198, 8, UI_SUB, AL_LEFT);
@@ -744,6 +748,7 @@ int main(int argc, char **argv) {
   gfx_init();
   srand((unsigned)osGetTime());
   load();
+  if (BUILD_NUM && lastBuild >= 0 && lastBuild < BUILD_NUM) { justUpdated = true; save(); }   // says so on the title until the first ride
   ach_load(); ach_bests(bests, nbests);
   sync_init();
   update_init(argc > 0 ? argv[0] : NULL);
