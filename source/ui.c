@@ -23,8 +23,8 @@ int ui_button(Box b, const char *label, int style, double size) {
     cv_font(FONT_MONO); cv_text(label, b.x + b.w / 2, b.y + b.h / 2, size, UI_BONE, AL_CENTER, BL_MIDDLE);
     return id;
   }
-  unsigned face = style == BTN_RED ? UI_RED : style == BTN_CYAN ? UI_CYAN : UI_INK2;
-  unsigned shadow = style == BTN_RED ? UI_GOLD : style == BTN_CYAN ? UI_PINK : UI_CYAN;
+  unsigned face = style == BTN_RED ? UI_RED : style == BTN_CYAN ? UI_CYAN : style == BTN_GOLD ? UI_GOLD : UI_INK2;
+  unsigned shadow = style == BTN_RED ? UI_GOLD : style == BTN_CYAN ? UI_PINK : style == BTN_GOLD ? UI_RED : UI_CYAN;
   double d = f ? 4 : 3;                                          // the focused button lifts, like the web's hover
   double ox = f ? -1 : 0;
   cv_fill(shadow); cv_rect(b.x + d + ox, b.y + d + ox, b.w, b.h);

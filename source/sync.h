@@ -35,3 +35,8 @@ void sync_watch_fetch(const char *id);
 int sync_watch_poll(Watched **out, const char **msg);
 void sync_watch_cancel(void);
 void sync_watch_free(Watched *w);
+// The Derby: whether the server has it open (the title shows DERBY), and sending its requests with this console's link.
+// Replies come back through derby_reply(what, ...) from sync_tick. False: not linked or the queue is full.
+bool sync_derby_on(void);
+bool sync_derby_send(int what, const char *method, const char *path, const char *body);
+const char *sync_my_id(void);              // the linked Discord account's id ("" until the first sync)

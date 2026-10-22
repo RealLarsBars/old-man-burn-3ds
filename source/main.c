@@ -16,6 +16,7 @@
 #include "sync.h"
 #include "replay.h"
 #include "update.h"
+#include "derby.h"
 #include <citro3d.h>
 
 #define H(x) RGB(0x##x)
@@ -25,7 +26,7 @@ static char trackName[64];
 static bool optMusic = true, optSfx = true; static int tzOff = 0;   // hours the console clock is ahead of Pacific time
 static int dpadPct = 100, touchPct = 100;                       // steering sensitivity, percent (Settings sliders)
 static int volPct = 100;                                         // sound volume, percent (Settings slider)
-enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE, UI_CODE, UI_BOARD, UI_UPDATE };
+enum { UI_TITLE, UI_ARCHIVE, UI_SETTINGS, UI_GARAGE, UI_CODE, UI_BOARD, UI_UPDATE, UI_DERBY };
 static int screen = UI_TITLE, backTo = UI_TITLE;                // which menu the bottom screen shows (rides use st)
 static int capturing = -1;                                       // the control (BIND_*) waiting for a button press
 static int archSel, archTop;                                     // the old-maps list: highlighted week and scroll
@@ -194,6 +195,7 @@ static void topHud(void) {
   if (st == ST_TITLE) return;
 #endif
   char b[128], u[128];
+  if (screen == UI_DERBY) return;                                // the Derby draws its own picture (derby_top)
   if (screen == UI_CODE) { topCode(); return; }
   if (st == ST_TITLE && screen == UI_GARAGE) { topGarage(); return; }
   if (st == ST_TITLE) {                                          // the title column of the web game, over the road
@@ -227,7 +229,7 @@ static void miniRow(void) {                                      // Settings bot
   ui_button((Box){ 8, 214, 74, 20 }, "Settings", BTN_MINI, 8);
   ui_button((Box){ 238, 214, 74, 20 }, optMusic || optSfx ? "Sound: on" : "Sound: off", BTN_MINI, 8);
 }
-enum { T_RIDE, T_DAILY, T_OLD, T_BOARD, T_GARAGE, T_SETTINGS, T_SOUND };
+enum { T_RIDE, T_DAILY, T_OLD, T_BOARD, T_GARAGE, T_SETTINGS, T_SOUND, T_DERBY };
 static double fitDisp(const char *s, double size, double w) {     // a Dela Gothic size that fits the label in w
   cv_font(FONT_DISP); while (size > 7 && cv_text_width(s, size) > w) size -= 0.5;
   return size;
@@ -244,7 +246,9 @@ static void bottomTitle(void) {
   fmtNum(bestOf(liveWeek), b); snprintf(line, sizeof line, bestOf(liveWeek) ? "Your best this week: %s m" : "No ride on this week's map yet", b);
   ui_text(line, 14, 20, 9, UI_GOLD, AL_LEFT);
   ui_button((Box){ 14, 32, 290, 44 }, "RIDE", BTN_RED, 20);
-  ui_button((Box){ 14, 88, 290, 34 }, "DAILY DASH · TODAY'S MAP", BTN_CYAN, 11);
+  bool derby = sync_derby_on();                                  // the Derby takes the end of the Daily Dash row (its button is made last)
+  const char *dd = derby ? "DAILY DASH" : "DAILY DASH · TODAY'S MAP";
+  ui_button((Box){ 14, 88, derby ? 196 : 290, 34 }, dd, BTN_CYAN, derby ? fitDisp(dd, 11, 186) : 11);
   ui_button((Box){ 14, 134, 92, 30 }, "OLD MAPS", BTN_ALT, fitDisp("OLD MAPS", 11, 84));
   ui_button((Box){ 113, 134, 92, 30 }, "BOARD", BTN_ALT, 11);
   const char *gar = garageNew ? "GARAGE · NEW" : "GARAGE";
@@ -258,6 +262,7 @@ static void bottomTitle(void) {
   else if (!sync_linked()) snprintf(line, sizeof line, "Daily Dash: link to Discord in Settings to ride it");
   else snprintf(line, sizeof line, bestOf(DAILY_BASE + liveDay) ? "Daily Dash best today: %s m" : "Daily Dash: needs Wi-Fi to check your tries", b);
   ui_text(line, 14, 184, 8, UI_CYAN, AL_LEFT);
+  if (derby) ui_button((Box){ 218, 88, 86, 34 }, "DERBY", BTN_GOLD, 12);   // T_DERBY
   if (justUpdated && !update_newer()) { snprintf(line, sizeof line, "Updated to build %d over Wi-Fi. Enjoy, sonny.", BUILD_NUM); ui_text(line, 14, 198, 8, UI_CYAN, AL_LEFT); return; }
   if (update_newer()) { snprintf(line, sizeof line, "A new version is out (build %d). START to update", update_newer()); ui_text(line, 14, 198, 8, UI_GOLD, AL_LEFT); return; }
   snprintf(line, sizeof line, "Hold %s to go · %s / %s or drag to steer", keyName(binds[BIND_GO]), keyName(binds[BIND_UP]), keyName(binds[BIND_DOWN]));
@@ -814,6 +819,9 @@ int main(int argc, char **argv) {
       if (n > 0 && (kd & (KEY_DOWN | KEY_UP))) { boardSel = (int)clampd(boardSel + ((kd & KEY_DOWN) ? 1 : -1), 0, n - 1); }
       if (kd & KEY_A) watchPick(boardSel);
       kd &= ~(KEY_DOWN | KEY_UP | KEY_LEFT | KEY_RIGHT | KEY_A);  // the rows move by themselves; buttons are tapped
+    } else if (st == ST_TITLE && screen == UI_DERBY) {
+      derby_keys(&kd);
+      if (!derby_is_open()) { screen = UI_TITLE; ui_reset_focus(); kd = 0; }
     } else if (st == ST_TITLE && dailyAsking) {                   // waiting on the Daily Dash try: B stops waiting
       if (kd & KEY_B) { sync_daily_cancel(); dailyAsking = false; }
       kd = 0;
@@ -867,6 +875,7 @@ int main(int argc, char **argv) {
       else if (r < 0) snprintf(boardMsg, sizeof boardMsg, "%s", msg);
     }
     { int w, d; if (st == ST_TITLE && sync_clock(&w, &d) && (w != liveWeek || d != liveDay)) { clockMaps(); enterMode(mode == MODE_OLD ? MODE_WEEK : mode); } }
+    if (derby_is_open()) derby_tick(dt);
     watchStep(dt);
     bool riding = st == ST_PLAY;
     update(dt, &in);
@@ -883,7 +892,8 @@ int main(int argc, char **argv) {
     char hint[48]; snprintf(hint, sizeof hint, "HOLD %s, SONNY. KEEP UP.", keyName(binds[BIND_GO]));
     for (char *c = hint; *c; c++) if (*c >= 'a' && *c <= 'z') *c -= 32;
     draw_best_m = bestOf(curSeed);
-    render_game(st == ST_PLAY && g.t < 5 && !simWatch ? hint : NULL);
+    if (st == ST_TITLE && screen == UI_DERBY) derby_top(dt);
+    else render_game(st == ST_PLAY && g.t < 5 && !simWatch ? hint : NULL);
     gfx_top_begin();
     topHud();
     gfx_bottom_begin(H(0a0612));
@@ -896,6 +906,7 @@ int main(int argc, char **argv) {
     else if (shown == UI_BOARD) bottomBoard();
     else if (shown == UI_TITLE) bottomTitle();
     else if (shown == UI_UPDATE) bottomUpdate();
+    else if (shown == UI_DERBY) derby_bottom();
     else if (simWatch) bottomWatch();
     else if (st == ST_OVER) bottomOver();
     else bottomPlay(touchY);
@@ -927,11 +938,15 @@ int main(int argc, char **argv) {
         else if (p == T_GARAGE) openGarage();
         else if (p == T_SETTINGS) openSettings();
         else if (p == T_SOUND) toggleSound();
+        else if (p == T_DERBY) { screen = UI_DERBY; derby_open(); ui_reset_focus(); }
       } else if (shown == UI_UPDATE) {
         int us = update_state(NULL, NULL);
         if (us == UP_DONE) { update_restart(); break; }             // closes the game (the .cia starts again by itself)
         else if (p == U_GO) update_start();
         else if (p == U_LATER) { screen = UI_TITLE; ui_reset_focus(); }
+      } else if (shown == UI_DERBY) {
+        derby_pressed(p);
+        if (!derby_is_open()) { screen = UI_TITLE; ui_reset_focus(); }
       } else if (shown == UI_CODE) {
         if (p == 0) { screen = backTo; ui_reset_focus(); }
       } else if (shown == UI_BOARD) {

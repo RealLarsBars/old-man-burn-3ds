@@ -94,6 +94,24 @@ Runs wait in `sdmc:/3ds/oldmanburn/outbox/` until they're sent. The link is kept
 mbedTLS from devkitPro's portlibs (`3ds-curl`, `3ds-mbedtls`, `3ds-jansson`, `3ds-zlib`), with the root certificates in
 `data/cacert.bin`.
 
+## The Old Man Derby
+
+When the console is linked and the Derby is running on the server, the title screen has a gold DERBY button. It is the
+same race Discord watches, one a day at 3pm Pacific, with the linked rider's coins:
+
+- the bottom screen is the day's card: six horses with their odds, form (last 3 races, newest first) and who picked
+  them. Up / down or a tap picks a horse, left / right (or - / +) adds a boost of 1 to 5 coins, and PICK IT places the
+  free pick (CHANGE PICK swaps it until betting closes). The top screen shows the post parade, with your horse ridden by
+  an old man in your own garage outfit,
+- at 3pm the race starts by itself if the Derby screen is open, live on the top screen with the race calls, the crowd
+  and the running order; B leaves it,
+- Y (or WATCH LAST RACE) plays the last race again, and the results show where your horse and the Old Man's longshot
+  finished and what was paid. Between 3pm and 4pm, the stable stats show until the next card opens.
+
+The horses come from `GET /api/3ds/derby` and bets go to `POST /api/3ds/derby/bet` (the same bet as Discord's: one per
+rider per race). The race's paths come from `GET /api/3ds/derby/race/<id>`, and `source/derby_art.c` draws them with
+the web game's art (`web/derby-art.js`), each horse cached once per race in an atlas.
+
 ## Replay codes
 
 Without Wi-Fi, "Replay code" on the game over screen turns the run into a long text code, shows it as a QR code on the
@@ -169,4 +187,5 @@ When the road rules change on the web (a new `SW5_FROM`, say), make the same cha
   the `data/*.bin` system fonts the game embeds
 - `source/perf.c`: the performance log
 - `source/net.c`, `source/sync.c`: HTTPS on a background thread, and linking / syncing with the Discord game
+- `source/derby.c`, `source/derby_art.c`: the Old Man Derby screen, and the race's pixel art ported from the web game
 - `source/replay.c`: recording runs and the replay codes (`source/qrcodegen.c` is Project Nayuki's QR encoder, MIT)

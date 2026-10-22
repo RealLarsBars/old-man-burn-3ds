@@ -42,6 +42,7 @@ void cv_stroke_rect(double x, double y, double w, double h, col_t c, double lw);
 void cv_clip(void);               // clip to the current path (each subpath must be convex; several = their union)
 void cv_poly(const double *xy, int n);
 void cv_circle(double cx, double cy, double r);
+void cv_disc(double cx, double cy, double r);    // a filled circle as one quad (citro2d's ellipse), when only translated and scaled
 // a linear gradient between two points along x or y (axis-aligned only), filling the rect
 void cv_grad(double x, double y, double w, double h, bool vertical, double g0, double g1, int n, const double *stops, const col_t *cols);
 
@@ -65,3 +66,16 @@ void gfx_build(void (*fn)(void));
 bool spr_begin(int id, int w, int h, double scale, double px, double py);   // draw it with the cv_ calls after this (false: out of memory, draw nothing)
 void cv_sprite(int id);
 void spr_end(void);                // after drawing a sprite in the middle of a frame: back to the game picture
+
+// atlases: big textures a screen paints its pictures into once (a few at a time, inside a frame) and then stamps
+// pixel for pixel. They live in the linear heap, so the bike game's sprites keep VRAM. Up to NATL of them.
+#define NATL 4
+int atl_new(int w, int h);         // -1: out of memory
+void atl_free(int a);
+bool atl_ok(int a);
+bool atl_begin(int a, bool clear); // draw into it with the cv_ calls, in its own pixels (false: no atlas)
+void atl_end(void);                // back to the game picture
+void atl_clear_rect(double x, double y, double w, double h);   // between atl_begin and atl_end: make that part see-through again
+// stamp the atlas's (sx, sy, sw, sh) with its top left at (x, y) through the current translate and scale
+void cv_atlas(int a, double sx, double sy, double sw, double sh, double x, double y);
+void cv_atlas_tint(int a, double sx, double sy, double sw, double sh, double x, double y, double w, double h, col_t c);   // white parts in colour c

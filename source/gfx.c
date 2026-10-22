@@ -187,6 +187,12 @@ void cv_fillpath(void) {
 }
 void cv_poly(const double *xy, int n) { cv_begin(); for (int i = 0; i < n; i++) i ? cv_line(xy[i * 2], xy[i * 2 + 1]) : cv_move(xy[0], xy[1]); cv_fillpath(); }
 void cv_circle(double cx, double cy, double r) { cv_begin(); cv_arc(cx, cy, r, 0, 7); cv_fillpath(); }
+void cv_disc(double cx, double cy, double r) {
+  if (cur.m.b != 0 || cur.m.c != 0 || cur.nclip || cur.m.a != cur.m.d) { cv_circle(cx, cy, r); return; }
+  u32 col = c2d(cur.fill); if (!(col >> 24)) return;
+  float x, y; xf(cx - r, cy - r, &x, &y); float d = (float)(2 * r * cur.m.a);
+  C2D_DrawEllipseSolid(x, y, 0, d, d, col);
+}
 static void segment(float x0, float y0, float x1, float y1, float hw, u32 col) {
   float dx = x1 - x0, dy = y1 - y0, l = sqrtf(dx * dx + dy * dy); if (l < 1e-4f) return;
   float nx = -dy / l * hw, ny = dx / l * hw;
@@ -306,7 +312,8 @@ static float textScale(double size) { return (float)(size / fontEm[curFont]); }
 #define TCACHE 96
 static C2D_TextBuf tcBuf; static struct { uint32_t h; C2D_Text t; } tc[TCACHE]; static int ntc;
 static const C2D_Text *textOf(const char *s) {
-  uint32_t h = 2166136261u + curFont; for (const char *p = s; *p; p++) h = (h ^ (uint8_t)*p) * 16777619u;
+  uint32_t h = (2166136261u ^ (curFont + 1)) * 16777619u;          // the font goes in as its own step: added to the seed, "2" in one font
+  for (const char *p = s; *p; p++) h = (h ^ (uint8_t)*p) * 16777619u;   // and "3" in the next came out the same
   for (int i = 0; i < ntc; i++) if (tc[i].h == h) return &tc[i].t;
   if (ntc == TCACHE || C2D_TextBufGetNumGlyphs(tcBuf) > 3500) { C2D_TextBufClear(tcBuf); ntc = 0; }
   C2D_Font f = fonts[curFont];
@@ -362,6 +369,58 @@ void cv_sprite(int id) {                                     // the sprite's piv
 void spr_end(void) { C2D_SceneBegin(rt); blendNormal(); cv_reset(); }
 void gfx_build(void (*fn)(void)) {
   C3D_FrameBegin(C3D_FRAME_SYNCDRAW); C2D_TextBufClear(tbuf); fn(); C3D_FrameEnd(0);
+}
+
+/* ---------- atlases ---------- */
+typedef struct { C3D_Tex tex; C3D_RenderTarget *t; int w, h; } Atlas;
+static Atlas atl[NATL];
+int atl_new(int w, int h) {
+  int a = 0; while (a < NATL && atl[a].t) a++;
+  if (a == NATL) return -1;
+  Atlas *A = &atl[a];
+  if (!C3D_TexInit(&A->tex, w, h, GPU_RGBA8)) return -1;        // the linear heap: VRAM stays for the bike game's sprites
+  C3D_TexSetFilter(&A->tex, GPU_NEAREST, GPU_NEAREST);
+  A->t = C3D_RenderTargetCreateFromTex(&A->tex, GPU_TEXFACE_2D, 0, -1);
+  if (!A->t) { C3D_TexDelete(&A->tex); return -1; }
+  A->w = w; A->h = h;
+  return a;
+}
+void atl_free(int a) {
+  if (a < 0 || a >= NATL || !atl[a].t) return;
+  C3D_RenderTargetDelete(atl[a].t); C3D_TexDelete(&atl[a].tex); memset(&atl[a], 0, sizeof atl[a]);
+}
+bool atl_ok(int a) { return a >= 0 && a < NATL && atl[a].t; }
+bool atl_begin(int a, bool clear) {
+  if (!atl_ok(a)) return false;
+  if (clear) C2D_TargetClear(atl[a].t, C2D_Color32(0, 0, 0, 0));
+  C2D_SceneBegin(atl[a].t);
+  C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+  cv_reset();
+  return true;
+}
+void atl_end(void) { spr_end(); }
+void atl_clear_rect(double x, double y, double w, double h) {
+  C2D_Flush();                                                    // what's queued keeps the normal blend
+  C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);   // replace, don't blend
+  C2D_DrawRectSolid((float)x, (float)y, 0, (float)w, (float)h, C2D_Color32(0, 0, 0, 0));
+  C2D_Flush();
+  C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+}
+static void atlasDraw(int a, double sx, double sy, double sw, double sh, double x, double y, double w, double h, const C2D_ImageTint *tint) {
+  if (!atl_ok(a) || sw <= 0 || sh <= 0) return;
+  Atlas *A = &atl[a];
+  Tex3DS_SubTexture sub = { (u16)sw, (u16)sh, (float)(sx / A->w), (float)(1 - sy / A->h), (float)((sx + sw) / A->w), (float)(1 - (sy + sh) / A->h) };
+  C2D_Image img = { &A->tex, &sub };
+  float X, Y; xf(x, y, &X, &Y);
+  C2D_DrawParams p = { { X, Y, (float)(w * cur.m.a), (float)(h * cur.m.d) }, { 0, 0 }, 0, 0 };
+  C2D_ImageTint al;
+  if (!tint && cur.alpha < 0.999) { C2D_AlphaImageTint(&al, (float)cur.alpha); tint = &al; }
+  C2D_DrawImage(img, &p, tint);
+}
+void cv_atlas(int a, double sx, double sy, double sw, double sh, double x, double y) { atlasDraw(a, sx, sy, sw, sh, x, y, sw, sh, NULL); }
+void cv_atlas_tint(int a, double sx, double sy, double sw, double sh, double x, double y, double w, double h, col_t c) {
+  C2D_ImageTint t; C2D_PlainImageTint(&t, c2d(c), 1.0f);
+  atlasDraw(a, sx, sy, sw, sh, x, y, w, h, &t);
 }
 
 /* ---------- frames ---------- */
