@@ -20,3 +20,12 @@ int look_spr(void);                        // which sprite to stamp for the bike
 void look_sprite(void);                    // draws SPR_BIKE (from draw_sprites, inside gfx_build)
 void look_under(void);                     // in the bike's coordinates, before the sprite is stamped: animated wheels
 void look_over(void);                      // after it: animated hat (and the specs over it), gear, the Cat Pal
+
+// for the Derby's jockeys (derby_art.c): the cardigans in the web game's order, each one's pixel painter (the bike's coat
+// coordinates, x -9..25, y -34..-12) and trim colour, and a cap drawn with the bike's head at (15, -36)
+#include "gfx.h"
+int look_coat_n(void);
+const char *look_coat_id(int i);
+col_t look_coat_px(const char *coat, int x, int y, bool sleeve);
+col_t look_coat_trim(const char *coat);
+void look_cap(const char *cap);

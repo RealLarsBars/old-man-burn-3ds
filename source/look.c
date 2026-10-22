@@ -1170,3 +1170,14 @@ void look_preview(double x, double y, double scale) {
   trailSample(bx, 0); drawBike(bx, 0, 0.22, 0, true);
   cv_restore();
 }
+
+/* ---------- the Derby's jockeys (derby_art.c) wear the garage too ---------- */
+static const Coat *coatOf(const char *id) {
+  for (size_t i = 0; i < sizeof COATS / sizeof COATS[0]; i++) if (!strcmp(COATS[i].id, id ? id : "")) return &COATS[i];
+  return COATS;
+}
+int look_coat_n(void) { return (int)(sizeof COATS / sizeof COATS[0]); }
+const char *look_coat_id(int i) { return i >= 0 && i < look_coat_n() ? COATS[i].id : ""; }
+col_t look_coat_px(const char *coat, int x, int y, bool sleeve) { return coatOf(coat)->px(x, y, sleeve); }
+col_t look_coat_trim(const char *coat) { return coatOf(coat)->trim; }
+void look_cap(const char *cap) { drawCap(cap ? cap : ""); }

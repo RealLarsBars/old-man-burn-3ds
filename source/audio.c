@@ -29,7 +29,8 @@ static ndspWaveBuf wbuf[NBUF]; static s16 *pcm;
 static Voice V[MAXV];
 static float sinTab[1024];
 static uint32_t nseed = 22222;
-static Biquad bassF, engF; static float engPh, engFreq = 60, engGain = 0, engGainT = 0, engFreqT = 60;
+static Biquad bassF, engF, crowdF; static float engPh, engFreq = 60, engGain = 0, engGainT = 0, engFreqT = 60;
+static float crowdG, crowdT;                                       // the Derby's crowd: band-passed noise, and its level
 static float *dly; static int dlyLen, dlyPos; static float dlyTime = 0.29f;
 static float musicLvl = 0.55f, musicT = 0.55f;
 // Louder than the web game's level, since the 3DS speakers are small and quiet: everything is turned up by BOOST and a
@@ -154,6 +155,10 @@ static void mixRange(s16 *out, int from, int n) {                // n samples of
     engFreq += (engFreqT - engFreq) * 0.0009f; engGain += (engGainT - engGain) * 0.0006f;
     engPh += engFreq * (1.0f / RATE); if (engPh >= 1) engPh -= 1;
     float fx = busBuf[B_SFX][i] + bq(&engF, 2 * engPh - 1) * engGain;
+    if (crowdT > 0 || crowdG > 0.0005f) {
+      crowdG += (crowdT - crowdG) * 0.00011f;                       // eases over about 0.4 s, like setTargetAtTime
+      nseed = nseed * 1664525u + 1013904223u; fx += bq(&crowdF, (int32_t)nseed / 2147483648.0f) * crowdG;
+    }
     // the lead's dotted-eighth echo
     int r = dlyPos - dl; if (r < 0) r += dlyLen;
     float lead = busBuf[B_LEAD][i], echo = dly[r];
@@ -218,7 +223,7 @@ int audio_core(void) { return threadCore; }
 void audio_init(void) {
   ftz();
   for (int i = 0; i < 1024; i++) sinTab[i] = sinf(i * 2 * (float)M_PI / 1024);
-  biquad(&bassF, F_LP, 600, 1); biquad(&engF, F_LP, 420, 1);
+  biquad(&bassF, F_LP, 600, 1); biquad(&engF, F_LP, 420, 1); biquad(&crowdF, F_BP, 900, 0.6f);
   dlyLen = RATE; dly = calloc(dlyLen, sizeof(float));
   limRel = expf(-1.0f / (0.06f * RATE));
   if (R_FAILED(ndspInit())) return;                               // no dspfirm.cdc on the SD card: play silently
@@ -262,3 +267,16 @@ int audio_tick(void) {
   // about 9 ms on an Old 3DS, enough to push the frame past the refresh.
   return ok && !thread ? pump(2) : 0;
 }
+
+/* ---------- the Derby's sounds (derby.c): the web game's tone() and noise() on the effects, and the crowd ---------- */
+void audio_fx_tone(float delay, float f, float dur, int wave, float gain, float fEnd) {
+  if (thread) LightLock_Lock(&lock);
+  tone(delay, f, dur, wave, gain, B_SFX, fEnd);
+  if (thread) LightLock_Unlock(&lock);
+}
+void audio_fx_noise(float delay, float dur, int filter, float f, float gain) {
+  if (thread) LightLock_Lock(&lock);
+  noise(delay, dur, filter, f, gain, B_SFX);
+  if (thread) LightLock_Unlock(&lock);
+}
+void audio_crowd(float level) { crowdT = level; }

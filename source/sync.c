@@ -4,6 +4,7 @@
 #include "ach.h"
 #include "replay.h"
 #include "sim.h"
+#include "derby.h"
 #include <3ds.h>
 #include <jansson.h>
 #include <dirent.h>
@@ -16,9 +17,9 @@
 #define LINK_FILE DIR_ "/link.txt"
 #define OUTBOX DIR_ "/outbox"
 #define BOARD_FILE DIR_ "/board.json"
-enum { K_STATE = 1, K_LINK, K_RUN, K_LOADOUT, K_WATCH, K_DAILY };
+enum { K_STATE = 1, K_LINK, K_RUN, K_LOADOUT, K_WATCH, K_DAILY, K_DERBY };   // K_DERBY + n: the Derby's own requests (derby.c)
 static char token[80], name[64], auth[96], status[64] = "Not linked to Discord";
-static bool linked, haveClock, loadoutDirty, sending;
+static bool linked, haveClock, loadoutDirty, sending, derbyOn;
 static int sWeek, sDay; static u64 lastState, nextRetry; static char sending_file[128];
 bool ach_server[NACH];                                            // achievements the Discord profile has unlocked (ach.c reads it)
 
@@ -195,6 +196,7 @@ static void applyState(json_t *j) {
   if (nm && strcmp(nm, name)) { snprintf(name, sizeof name, "%s", nm); saveLink(); }
   json_t *p = json_object_get(j, "profile"); if (json_is_object(p)) applyProfile(p);
   if (json_is_array(json_object_get(j, "board"))) { applyBoards(j); saveBoards(j); }
+  derbyOn = json_is_true(json_object_get(j, "derby_on"));
 }
 
 /* ---------- the outbox: one JSON file per finished run, sent oldest first ---------- */
@@ -260,7 +262,7 @@ void sync_unlink(void) {
   linked = false; token[0] = name[0] = 0; haveClock = false;
   memset(ach_server, 0, sizeof ach_server); saveLink(); setStatus("Not linked to Discord");
   nBoard[0] = nBoard[1] = -1; myId[0] = 0; dailyCanWatch = false; dailyTries = -1; remove(BOARD_FILE);
-  heldTok[0] = 0;
+  heldTok[0] = 0; derbyOn = false;
 }
 void sync_loadout_changed(void) {
   if (!linked) return;
@@ -270,6 +272,13 @@ void sync_loadout_changed(void) {
   char *b = json_dumps(j, JSON_COMPACT); json_decref(j);
   loadoutDirty = true;
   if (b) { net_send(K_LOADOUT, "POST", "/api/3ds/loadout", b, auth); free(b); }
+}
+
+/* ---------- the Derby (derby.c): its requests go out with this console's link ---------- */
+bool sync_derby_on(void) { return linked && derbyOn; }
+const char *sync_my_id(void) { return myId; }
+bool sync_derby_send(int what, const char *method, const char *path, const char *body) {
+  return linked && net_send(K_DERBY + what, method, path, body, auth);
 }
 
 static const char *detail(json_t *j, const char *dflt) { const char *d = json_string_value(json_object_get(j, "detail")); return d ? d : dflt; }
@@ -335,6 +344,9 @@ void sync_tick(bool menus) {
       }
     } else if (r.kind == K_LOADOUT) {
       if (ok) loadoutDirty = false;
+    } else if (r.kind >= K_DERBY) {
+      if (r.status == 401) { sync_unlink(); setStatus("Unlinked by Discord. Link again in Settings."); }
+      derby_reply(r.kind - K_DERBY, r.status, j);
     }
     if (j) json_decref(j);
     free(r.body);

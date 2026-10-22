@@ -16,7 +16,7 @@
 #define UI_LINE   0x4a3874ffu
 
 typedef struct { double x, y, w, h; } Box;
-enum { BTN_RED, BTN_CYAN, BTN_ALT, BTN_MINI };
+enum { BTN_RED, BTN_CYAN, BTN_ALT, BTN_MINI, BTN_GOLD };
 
 void ui_begin(void);                          // start of a screen's frame: forget last frame's buttons
 int ui_button(Box b, const char *label, int style, double size);   // returns its id; focus and taps are by id
