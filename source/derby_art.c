@@ -452,10 +452,11 @@ static void farRail(double camX) {
   }
 }
 static const col_t DIRT[8] = { H(9a6440), H(a46c46), H(ac744c), H(b07a50), H(b27c52), H(ae784e), H(a8724a), H(a06a44) };
+static double row_par(double y) { return 0.88 + (y - TRACK_TOP) / (TRACK_BOT - TRACK_TOP) * 0.3; }   // how fast a row of dirt scrolls
 static void track(double camX) {
   // every row of dirt scrolls at its own speed: the far side slower, the near side faster, for depth
   for (int y = TRACK_TOP; y < TRACK_BOT; y++) {
-    double f = (double)(y - TRACK_TOP) / (TRACK_BOT - TRACK_TOP), par = 0.88 + f * 0.3, off = camX * par;
+    double f = (double)(y - TRACK_TOP) / (TRACK_BOT - TRACK_TOP), par = row_par(y), off = camX * par;
     R(0, y, LW, 1, DIRT[(int)fmin(7, floor(f * 8))]);
     const int step = 9; int k0 = (int)floor(off / step);
     for (int k = k0; k < k0 + LW / step + 2; k++) {
@@ -682,13 +683,62 @@ void da_outfit(int raceId, int num, DaRider *out) {   // the same picks as outfi
 /* ---------- one race as the TV shows it (raceShow() in derby-art.js) ---------- */
 #define STRIDE 100      // world pixels per stride, so hooves never skate
 #define PACK 230        // how wide the field is drawn, at most, before the home stretch
-#define CAM_W 3         // the camera spring's stiffness (per second)
+#define NOSE 46         // how far a horse's nose reaches in front of where it's drawn from: the nose decides the race
+#define CAM_SOFT 0.6    // seconds: how softly the camera eases (the spread of its smoothing)
 void da_show_start(DaShow *v, const DaHorse *hs, int n, int mine, int oldMan, int winner, int second) {
   memset(v, 0, sizeof *v);
   v->hs = hs; v->n = n; v->mine = mine; v->oldMan = oldMan; v->winner = winner; v->second = second;
-  v->cam = -300; v->lead = -1; ndust = 0;
+  v->lead = -1; ndust = 0;
 }
 static void say(DaShow *v, const char *s, double secs) { snprintf(v->said, sizeof v->said, "%s", s); v->sayUntil = v->t + secs; }
+// where everyone is drawn, rs seconds after the off. The camera can't fit a field strung out over a furlong, so the
+// gaps are drawn squeezed until the home stretch (going by the leader, so they're true before anyone reaches the line),
+// then let out to their true size. x is where a horse is drawn from; its nose is NOSE further on and reaches the line
+// exactly at its finish time
+static void field(const DaShow *v, double rs, double *xs, double *pp, bool *done) {
+  const DaHorse *hs = v->hs; int n = v->n;
+  double ps[DA_NH], pm = 0, pmin = 1e9, pmax = -1e9;
+  for (int i = 0; i < n; i++) { ps[i] = da_progress(&hs[i], fmax(0, rs)); pm += ps[i]; pmin = fmin(pmin, ps[i]); pmax = fmax(pmax, ps[i]); }
+  pm /= n;
+  double spread = (pmax - pmin) * DA_RACE_LEN, fit = fmin(1, PACK / fmax(1, spread)), home = clampd((pmax - 0.75) / 0.2, 0, 1);
+  double k = fit + (1 - fit) * home * home * (3 - 2 * home);
+  for (int i = 0; i < n; i++) {
+    double p = fmin(1, pm) + k * (ps[i] - fmin(1, pm));
+    xs[i] = p * (DA_RACE_LEN - NOSE + 24) - 24; pp[i] = p; done[i] = rs >= hs[i].T;     // from inside the stalls
+  }
+}
+static bool ahead(const DaHorse *hs, const double *xs, const bool *done, int a, int b) {
+  if (done[a] && done[b]) return hs[a].T < hs[b].T;
+  if (done[a] != done[b]) return done[a];
+  return xs[a] > xs[b];
+}
+// the shot: ride with the front of the pack, the leader on the right third of the screen. Once the winner is home it
+// stops on the line and lets the rest gallop through
+static double shot(const DaShow *v, double rs) {
+  rs = fmax(0, rs);
+  double xs[DA_NH], pp[DA_NH]; bool done[DA_NH], used[DA_NH] = { 0 };
+  field(v, rs, xs, pp, done);
+  double top[3] = { -1e18, -1e18, -1e18 };                                           // the three furthest on
+  for (int r = 0; r < 3 && r < v->n; r++) {
+    int best = -1;
+    for (int i = 0; i < v->n; i++) if (!used[i] && (best < 0 || xs[i] > xs[best])) best = i;
+    used[best] = true; top[r] = xs[best];
+  }
+  double lx = top[0], mid = top[v->n > 2 ? 2 : v->n - 1];
+  double target = fmax(lx - 400, fmin(lx - 300, (lx + mid) / 2 - 240));
+  return rs >= v->hs[v->winner].T - 1 ? fmin(target, DA_RACE_LEN - 320) : target;
+}
+// The camera is the shot smoothed over the seconds either side of now. The whole race is known in advance, so it can
+// look ahead and never lag, and it depends only on the race clock: however unevenly frames arrive, every frame lands
+// exactly where it should and the picture never shakes. The same camera as derby-art.js
+static double cam_at(const DaShow *v, double rs) {
+  double sum = 0, wsum = 0;
+  for (int j = -18; j <= 18; j++) {
+    double u = j * 0.1 / CAM_SOFT, w = exp(-0.5 * u * u);
+    sum += w * shot(v, rs + j * 0.1); wsum += w;
+  }
+  return sum / wsum;
+}
 double da_show_end(const DaShow *v) {
   double mx = 0; for (int i = 0; i < v->n; i++) mx = fmax(mx, v->hs[i].T);
   return fmin(mx, v->hs[v->winner].T + 4) + DA_INTRO;
@@ -700,34 +750,17 @@ DaShowOut da_show_draw(DaShow *v, double rt, double dt) {
   v->lastRt = rt; v->haveRt = true;
   v->t += dt;
   double rs = rt - DA_INTRO;                                                        // seconds since the gates opened
-  double ps[DA_NH], pm = 0, pmin = 1e9, pmax = -1e9;
-  for (int i = 0; i < n; i++) { ps[i] = da_progress(&hs[i], fmax(0, rs)); pm += ps[i]; pmin = fmin(pmin, ps[i]); pmax = fmax(pmax, ps[i]); }
-  pm /= n;
-  // the camera can't fit a field strung out over a furlong, so the gaps are drawn squeezed until the home stretch,
-  // then let out to their true size so every horse still hits the line at its own time (order never changes)
-  double spread = (pmax - pmin) * DA_RACE_LEN, fit = fmin(1, PACK / fmax(1, spread)), home = clampd((pm - 0.7) / 0.22, 0, 1);
-  double k = fit + (1 - fit) * home * home * (3 - 2 * home);
   double xs[DA_NH], pp[DA_NH]; bool done[DA_NH];
-  for (int i = 0; i < n; i++) {
-    double p = fmin(1, pm) + k * (ps[i] - fmin(1, pm));
-    xs[i] = p * (DA_RACE_LEN + 24) - 24; pp[i] = p; done[i] = rs >= hs[i].T;            // from inside the stalls
-  }
+  field(v, rs, xs, pp, done);
+  // the running order: the ones home in the order they finished (galloping out past the line changes nothing), then
+  // the rest by who's in front
   int *ord = out.order; for (int i = 0; i < n; i++) ord[i] = i;
-  for (int i = 1; i < n; i++) for (int j = i; j > 0 && xs[ord[j]] > xs[ord[j - 1]]; j--) { int t = ord[j]; ord[j] = ord[j - 1]; ord[j - 1] = t; }
-  // the camera rides with the front of the pack, the leader on the right third of the screen. Once the winner is home
-  // it stops on the line and lets the rest gallop through the shot
-  double lx = xs[ord[0]], mid = xs[ord[n > 2 ? 2 : n - 1]];
-  double target = fmax(lx - 400, fmin(lx - 300, (lx + mid) / 2 - 240));
-  if (rs >= winT - 1) target = fmin(target, DA_RACE_LEN - 320);
-  // a critically damped spring on the shot, fed the shot's own (smoothed) speed so it keeps up at a gallop
-  if (rs < 0 || !v->havePrev) { v->prevTarget = target; v->camV = 0; v->tvs = 0; v->havePrev = true; }
-  v->tvs += ((target - v->prevTarget) / fmax(dt, 1e-3) - v->tvs) * fmin(1, dt * 3); v->prevTarget = target;
-  for (double left = dt; left > 1e-9; left -= 1.0 / 60) {                          // in small steps, so a slow frame can't upset it
-    double h = fmin(left, 1.0 / 60);
-    v->camV += (CAM_W * CAM_W * (target - v->cam) + 2 * CAM_W * (v->tvs - v->camV)) * h;
-    v->cam += v->camV * h;
-  }
-  if (rs < 0) v->cam = -300;
+  for (int i = 1; i < n; i++) for (int j = i; j > 0 && ahead(hs, xs, done, ord[j], ord[j - 1]); j--) { int t = ord[j]; ord[j] = ord[j - 1]; ord[j - 1] = t; }
+  double cam = v->cam = cam_at(v, rs);
+  // Near the line the horses take the same perspective as the dirt under their lane (the far lane scrolls slower
+  // than the near one), so each nose meets the chalk line of its own lane at its finish time. Further out they
+  // keep to the gate's flat view.
+  double persp = clampd((cam - (DA_RACE_LEN - 2600)) / 1600, 0, 1);
   // the calls
   char b[96], up[40];
   if (rs < 0 && !v->cGate) { v->cGate = true; say(v, "THEY'RE IN THE GATE...", DA_INTRO); }
@@ -747,12 +780,13 @@ DaShowOut da_show_draw(DaShow *v, double rt, double dt) {
     upper(hs[v->winner].name, up, sizeof up);
     snprintf(b, sizeof b, close ? "IT'S A PHOTO! ... %s BY A NOSE!" : "%s WINS IT!", up); say(v, b, 5);
   }
-  DaScene s = { .t = v->t, .dt = dt, .camX = v->cam, .finish = DA_RACE_LEN, .hasGate = true, .gate = 0, .gateOpen = clampd(rs * 3, 0, 1),
+  DaScene s = { .t = v->t, .dt = dt, .camX = cam, .finish = DA_RACE_LEN, .hasGate = true, .gate = 0, .gateOpen = clampd(rs * 3, 0, 1),
                 .cheer = pp[ord[0]] > 0.7 || rs < 0, .nb = 0, .nr = n };
   static char tags[DA_NH][16];
   for (int i = 0; i < n; i++) {
     DaRunner *r = &s.r[i];
-    r->x = xs[i] - v->cam; r->y = DA_LANE0 + (hs[i].num - 1) * DA_LANE; r->h = i; r->standing = rs < 0;
+    r->y = DA_LANE0 + (hs[i].num - 1) * DA_LANE; r->h = i; r->standing = rs < 0;
+    r->x = (xs[i] + NOSE - cam) * (1 + (row_par(r->y) - 1) * persp) - NOSE;
     r->phase = mdf(xs[i] / STRIDE + hs[i].num * 0.17, 1); r->mine = i == v->mine;
     if (i == v->mine) { snprintf(tags[i], sizeof tags[i], "YOU #%d", hs[i].num); r->tag = tags[i]; }
     else r->tag = i == v->oldMan ? "OLD MAN'S BET" : NULL;
