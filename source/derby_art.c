@@ -696,6 +696,8 @@ double da_show_end(const DaShow *v) {
 DaShowOut da_show_draw(DaShow *v, double rt, double dt) {
   DaShowOut out = { 0 };
   const DaHorse *hs = v->hs; int n = v->n; double winT = hs[v->winner].T;
+  if (v->haveRt) dt = clampd(rt - v->lastRt, 0, 0.5);
+  v->lastRt = rt; v->haveRt = true;
   v->t += dt;
   double rs = rt - DA_INTRO;                                                        // seconds since the gates opened
   double ps[DA_NH], pm = 0, pmin = 1e9, pmax = -1e9;
@@ -720,8 +722,11 @@ DaShowOut da_show_draw(DaShow *v, double rt, double dt) {
   // a critically damped spring on the shot, fed the shot's own (smoothed) speed so it keeps up at a gallop
   if (rs < 0 || !v->havePrev) { v->prevTarget = target; v->camV = 0; v->tvs = 0; v->havePrev = true; }
   v->tvs += ((target - v->prevTarget) / fmax(dt, 1e-3) - v->tvs) * fmin(1, dt * 3); v->prevTarget = target;
-  v->camV += (CAM_W * CAM_W * (target - v->cam) + 2 * CAM_W * (v->tvs - v->camV)) * dt;
-  v->cam += v->camV * dt;
+  for (double left = dt; left > 1e-9; left -= 1.0 / 60) {                          // in small steps, so a slow frame can't upset it
+    double h = fmin(left, 1.0 / 60);
+    v->camV += (CAM_W * CAM_W * (target - v->cam) + 2 * CAM_W * (v->tvs - v->camV)) * h;
+    v->cam += v->camV * h;
+  }
   if (rs < 0) v->cam = -300;
   // the calls
   char b[96], up[40];

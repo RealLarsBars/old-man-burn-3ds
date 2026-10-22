@@ -50,6 +50,7 @@ int da_textw(const char *s, int sc);
 typedef struct {
   const DaHorse *hs; int n; int mine, oldMan, winner, second;   // indexes into hs (-1 none); winner/second from the order
   double t, cam, camV, tvs, prevTarget; bool havePrev;
+  double lastRt; bool haveRt;                    // the show runs on its own clock (a replay can be sped up)
   char said[64]; double sayUntil; int lead; double leadAt, flash;
   bool cGate, cOff, cFinal, cWon;
 } DaShow;
