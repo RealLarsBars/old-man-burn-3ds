@@ -615,6 +615,13 @@ bool da_build(void) {
 }
 
 /* One frame: s = {t, dt, camX, runners, board, cheer, gate} as scene() in derby-art.js */
+static bool still;
+static void stillDust(double x, double y, int seed) {   // the dust a planted hoof has thrown, frozen: the same every time
+  for (int i = 0; i < 6; i++) {
+    double a = 1 - i / 6.0; int sz = a > 0.5 ? 2 : 1;
+    cv_fill(rgba(196, 150, 108, 0.7 * a)); cv_rect(rnd(x - 4 - i * 4 - hash(seed, i) * 3), rnd(y - 2 - i * 1.6 - hash(i, seed) * 4), sz, sz);
+  }
+}
 static void runner(const DaRunner *r, double t, double dt) {
   if (r->mine) { R(r->x - 34, r->y, 70, 3, rgba(255, 210, 31, .75)); R(r->x - 28, r->y + 3, 58, 1, rgba(255, 210, 31, .5)); }  // your horse's spotlight
   double x = rnd(r->x), y = rnd(r->y);
@@ -623,16 +630,18 @@ static void runner(const DaRunner *r, double t, double dt) {
   int c = cellOf(r->h, r->phase, r->standing); double ph = r->standing ? 0 : phaseOfCell(c % (NPH + 1));
   if (atl_ok(hAtl) && hb[r->h] > c % (NPH + 1)) cv_atlas(hAtl, (c % CCOLS) * CW, (c / CCOLS) * CH, CW, CH, x - CX, y - CY);
   else { cv_save(); cv_translate(x, y); horseBody(&cur[r->h], ph, r->standing, ph * 2 * M_PI / 9); cv_restore(); }
-  if (dt > 0 && !r->standing) {                                                         // dirt thrown back off the toe
+  if ((dt > 0 || still) && !r->standing) {                                              // dirt thrown back off the toe
     double by = bounce(ph, false);
     for (int n = HL; n <= FL; n += 2) {
       LegPose p = legPose(n, by, ph, false);
-      if (p.h.planted && p.h.u > 0.18 && frand() < 0.6) kick(p.hx * K + x, r->y);
+      if (!(p.h.planted && p.h.u > 0.18)) continue;
+      if (still) stillDust(p.hx * K + x, r->y, cur[r->h].num);                       // a photo: dust frozen in the air
+      else if (frand() < 0.6) kick(p.hx * K + x, r->y);
     }
   }
 }
 void da_scene(const DaScene *s) {
-  finish = s->finish > 0 ? s->finish : FINISH;
+  finish = s->finish > 0 ? s->finish : FINISH; still = s->still;
   sky(s);
   hills(s->camX, 0.06, 112, 10, H(8aa6cc), 1);
   hills(s->camX, 0.14, 124, 8, H(6f9486), 4);
@@ -652,7 +661,7 @@ void da_scene(const DaScene *s) {
   for (int i = 1; i < n; i++) for (int j = i; j > 0 && s->r[ord[j]].y < s->r[ord[j - 1]].y; j--) { int tmp = ord[j]; ord[j] = ord[j - 1]; ord[j - 1] = tmp; }
   if (s->hasGate) gate(s->gate - s->camX, s->gateOpen, false);
   for (int i = 0; i < n; i++) runner(&s->r[ord[i]], s->t, s->dt);
-  drawDust(s->dt);
+  if (!s->still) drawDust(s->dt);
   if (s->hasGate) gate(s->gate - s->camX, s->gateOpen, true);
   for (int i = 0; i < n; i++) if (s->r[ord[i]].plate) plate(s->r[ord[i]].x + 6, s->r[ord[i]].y - 92, &cur[s->r[ord[i]].h]);
   for (int i = 0; i < n; i++) { const DaRunner *r = &s->r[ord[i]]; if (r->tag && !r->mine) tag(r->x + 14, r->y - 96, r->tag, r->tagCol); }
@@ -820,4 +829,53 @@ DaShowOut da_show_draw(DaShow *v, double rt, double dt) {
   if (v->flash > 0) { R(0, 0, LW, LH, rgba(255, 255, 255, fmin(1, v->flash * 3))); v->flash -= dt; }   // the photo finish camera
   out.rs = rs; out.lead = pp[ord[0]]; out.won = v->cWon; out.photo = v->flash > 0.3;
   return out;
+}
+
+/* ---------- the photo finish (photo() in derby-art.js) ---------- */
+#define PHOTO_LINE 200  // where the finish camera puts the line across its picture: left of middle, so the field coming up is in shot
+static void finishTime(double T, char *b, int n) {   // 1:02.47
+  int cs = (int)lround(T * 100);
+  snprintf(b, n, "%d:%02d.%02d", cs / 6000, cs / 100 % 60, cs % 100);
+}
+static void margin(double gap, char *b, int n) {     // a gap in seconds as the racing papers put it: a nose, a head, a neck, then lengths
+  if (gap < 0.1) { snprintf(b, n, "A NOSE"); return; }
+  if (gap < 0.15) { snprintf(b, n, "A HEAD"); return; }
+  if (gap < 0.2) { snprintf(b, n, "A NECK"); return; }
+  double l = round(gap / 0.2 * 2) / 2;                // a length is about a fifth of a second at a gallop
+  snprintf(b, n, "%d%s%s", (int)floor(l), fmod(l, 1) ? " 1/2" : "", l > 1 ? " LENGTHS" : " LENGTH");
+}
+void da_show_photo(const DaShow *v, int h) {
+  const DaHorse *hs = v->hs; int n = v->n, place = 0, ord[DA_NH];
+  for (int i = 0; i < n; i++) ord[i] = i;                                         // the order they came home
+  for (int i = 1; i < n; i++) for (int j = i; j > 0 && hs[ord[j]].T < hs[ord[j - 1]].T; j--) { int t = ord[j]; ord[j] = ord[j - 1]; ord[j - 1] = t; }
+  for (int i = 0; i < n; i++) if (ord[i] == h) place = i;
+  double T = hs[h].T, cam = DA_RACE_LEN - PHOTO_LINE, xs[DA_NH], pp[DA_NH]; bool done[DA_NH];
+  field(v, T, xs, pp, done);
+  DaScene s = { .t = T + DA_INTRO, .dt = 0, .still = true, .camX = cam, .finish = DA_RACE_LEN, .cheer = true, .nr = n };
+  for (int i = 0; i < n; i++) {
+    DaRunner *r = &s.r[i];
+    r->y = DA_LANE0 + (hs[i].num - 1) * DA_LANE; r->h = i;
+    r->x = (xs[i] + NOSE - cam) * row_par(r->y) - NOSE;
+    r->phase = mdf(xs[i] / STRIDE + hs[i].num * 0.17, 1);
+  }
+  for (int i = 0; i < nboard && i < DA_NH; i++) { s.board[i] = board[i]; s.board[i].hot = board[i].num == hs[h].num; }
+  s.nb = nboard;
+  da_scene(&s);
+  double y = DA_LANE0 + (hs[h].num - 1) * DA_LANE;
+  R(rnd(PHOTO_LINE * row_par(y)), 0, 1, y, rgba(224, 36, 46, .75));                 // the hairline through the nose
+  R(0, 0, LW, 2, H(f6f4fa)); R(0, LH - 2, LW, 2, H(f6f4fa)); R(0, 0, 2, LH, H(f6f4fa)); R(LW - 2, 0, 2, LH, H(f6f4fa));
+  R(6, 6, 104, 18, rgba(20, 16, 31, .86)); R(10, 12, 5, 5, H(e0242e));
+  text("PHOTO FINISH", 19, 10, H(ffd21f), 2);
+  // the caption: where it came in, the horse, its time, and how far it was behind the one in front
+  double gap = place ? T - hs[ord[place - 1]].T : hs[ord[1]].T - T;
+  char name[24], tm[16], mg[24], line2[64], pl[8], num[4];
+  upper(hs[h].name, name, 21); finishTime(T, tm, sizeof tm); margin(gap, mg, sizeof mg);
+  if (place) snprintf(line2, sizeof line2, "%s  %s BEHIND", tm, mg); else snprintf(line2, sizeof line2, "%s  WON BY %s", tm, mg);
+  snprintf(pl, sizeof pl, "%d%s", place + 1, place == 0 ? "ST" : place == 1 ? "ND" : place == 2 ? "RD" : "TH");
+  double w = fmax(48 + textW(name, 1), 10 + textW(line2, 1)) + 10;
+  R(6, LH - 36, w, 30, rgba(20, 16, 31, .86)); R(6, LH - 36, w, 1, H(ffd21f));
+  text(pl, 11, LH - 31, place ? H(f6f4fa) : H(ffd21f), 2);
+  R(40, LH - 32, 9, 9, hs[h].look.silk1); snprintf(num, sizeof num, "%d", hs[h].num); text(num, 43, LH - 30, hs[h].look.silk2, 1);
+  text(name, 53, LH - 30, H(f6f4fa), 1);
+  text(line2, 11, LH - 17, H(b8a9d6), 1);
 }

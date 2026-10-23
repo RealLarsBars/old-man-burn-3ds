@@ -26,7 +26,7 @@ typedef struct {
 typedef struct { double x, y, phase; int h; bool standing, mine, plate; const char *tag; col_t tagCol; } DaRunner;
 typedef struct { int num; const char *name, *odds; bool hot; } DaBoardRow;
 typedef struct {
-  double t, dt, camX, finish; bool cheer;
+  double t, dt, camX, finish; bool cheer, still;      // still: a photo, with the dust frozen in the air
   bool hasGate; double gate, gateOpen;
   int nb; DaBoardRow board[DA_NH];
   int nr; DaRunner r[DA_NH];
@@ -58,3 +58,6 @@ typedef struct { double rs, lead; bool won, photo; int order[DA_NH]; } DaShowOut
 void da_show_start(DaShow *v, const DaHorse *hs, int n, int mine, int oldMan, int winner, int second);
 DaShowOut da_show_draw(DaShow *v, double rt, double dt);
 double da_show_end(const DaShow *v);              // when the show is over, in show seconds
+// The photo finish: a still of the moment horse h's nose touched the line, from the finish camera fixed on the post
+// (photo() in derby-art.js). It comes from the race alone, so it can be drawn any time after the race.
+void da_show_photo(const DaShow *v, int h);
