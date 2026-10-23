@@ -33,7 +33,7 @@ static s64 off;                                   // the server's clock minus th
 static Race card, last; static s64 opens; static StableRow stable[16]; static int nstable;
 static int sel, boost, seenCard = -1; static char msg[160]; static u64 msgAt;
 static double tt, parade;
-static struct { bool on, replay, results; Race race; s64 t0; DaShow v; DaShowOut o; bool bell, won, photo; double hoofAt; } sh;
+static struct { bool on, replay, results; Race race; s64 t0; DaShow v; DaShowOut o; bool bell, won, photo; double hoofAt; int snap; } sh;   // snap: whose photo finish is up (a place, from 0)
 static int idBack, idRow[DA_NH], idMinus, idPlus, idPick, idWatch, idRetry, idAgain, idCard;
 
 static s64 now(void) { return (s64)osGetTime() + off; }
@@ -241,6 +241,7 @@ void derby_tick(double dt) {
 void derby_keys(u32 *kd) {
   u32 k = *kd;
   if (k & KEY_B) { if (sh.on) stopShow(); else derby_close(); }
+  else if (sh.on && sh.results && (k & (KEY_UP | KEY_DOWN))) sh.snap = (sh.snap + ((k & KEY_DOWN) ? 1 : sh.race.nh - 1)) % sh.race.nh;   // flip through the photos
   else if (sh.on) {}
   else if (card.ok && on) {
     if (k & (KEY_UP | KEY_DOWN)) { sel = (int)clampd(sel + ((k & KEY_DOWN) ? 1 : -1), 0, card.nh - 1); }
@@ -293,7 +294,8 @@ void derby_top(double dt) {
   if (r) { DaBoardRow b[DA_NH]; boardOf(r, b, -1); da_set(r->h, r->nh, b, r->nh); }
   else da_set(NULL, 0, NULL, 0);
   da_build();
-  if (sh.on) { sh.o = da_show_draw(&sh.v, showClock(), dt); sound(&sh.o, dt); }
+  if (sh.on && sh.results) da_show_photo(&sh.v, sh.race.order[sh.snap]);   // the results are up: the photo finish holds still
+  else if (sh.on) { sh.o = da_show_draw(&sh.v, showClock(), dt); sound(&sh.o, dt); }
   else drawParade(dt);
 }
 
@@ -400,9 +402,12 @@ static void bottomResults(void) {
   const Race *r = &sh.race; char b[200];
   cv_fill(H(150c26)); cv_rect(0, 0, 320, 240);
   ui_heading("RESULT", 12, 24, 18, AL_LEFT);
+  ui_text("Up / down or tap: photo finish", 308, 22, 6.5, UI_DIM, AL_RIGHT);
   for (int i = 0; i < r->nh; i++) {
     int k = r->order[i]; const DaHorse *h = &r->h[k]; double y = 30 + i * 17;
+    idRow[i] = ui_hot((Box){ 8, y, 304, 16 });
     if (k == r->mine) { cv_fill(rgba(255, 210, 31, .12)); cv_rect(8, y, 304, 16); }
+    if (i == sh.snap) cv_stroke_rect(8.5, y + .5, 303, 15, UI_GOLD, 1);
     snprintf(b, sizeof b, "%d", i + 1); ui_text(b, 16, y + 11, 9, i ? UI_DIM : UI_GOLD, AL_LEFT);
     swatch(28, y + 2, 12, h);
     ui_text(h->name, 46, y + 11, 8, k == r->mine ? UI_GOLD : UI_BONE, AL_LEFT);
@@ -451,5 +456,5 @@ void derby_pressed(int p) {
   else if (p == idPlus) boost = boost < maxBoost() ? boost + 1 : boost;
   else if (p == idAgain) startShow(&sh.race, true);
   else if (p == idCard) stopShow();
-  else for (int i = 0; i < DA_NH; i++) if (p == idRow[i]) sel = i;
+  else for (int i = 0; i < DA_NH; i++) if (p == idRow[i]) { if (sh.on) sh.snap = i; else sel = i; }
 }

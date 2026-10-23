@@ -106,7 +106,8 @@ same race Discord watches, one a day at 3pm Pacific, with the linked rider's coi
 - at 3pm the race starts by itself if the Derby screen is open, live on the top screen with the race calls, the crowd
   and the running order; B leaves it,
 - Y (or WATCH LAST RACE) plays the last race again, and the results show where your horse and the Old Man's longshot
-  finished and what was paid. Between 3pm and 4pm, the stable stats show until the next card opens.
+  finished and what was paid, over the photo finish on the top screen: the moment each horse's nose touched the line,
+  the winner's first (up / down or a tap on a row shows the others). Between 3pm and 4pm, the stable stats show until the next card opens.
 
 The horses come from `GET /api/3ds/derby` and bets go to `POST /api/3ds/derby/bet` (the same bet as Discord's: one per
 rider per race). The race's paths come from `GET /api/3ds/derby/race/<id>`, and `source/derby_art.c` draws them with
