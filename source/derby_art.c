@@ -693,14 +693,15 @@ void da_show_start(DaShow *v, const DaHorse *hs, int n, int mine, int oldMan, in
 static void say(DaShow *v, const char *s, double secs) { snprintf(v->said, sizeof v->said, "%s", s); v->sayUntil = v->t + secs; }
 // where everyone is drawn, rs seconds after the off. The camera can't fit a field strung out over a furlong, so the
 // gaps are drawn squeezed until the home stretch (going by the leader, so they're true before anyone reaches the line),
-// then let out to their true size. x is where a horse is drawn from; its nose is NOSE further on and reaches the line
+// then let out to their true size. The squeeze comes in softly and is let out over the last third, so nobody seems to
+// brake or bolt when it changes (web/derby-art.js). x is where a horse is drawn from; its nose is NOSE further on and reaches the line
 // exactly at its finish time
 static void field(const DaShow *v, double rs, double *xs, double *pp, bool *done) {
   const DaHorse *hs = v->hs; int n = v->n;
   double ps[DA_NH], pm = 0, pmin = 1e9, pmax = -1e9;
   for (int i = 0; i < n; i++) { ps[i] = da_progress(&hs[i], fmax(0, rs)); pm += ps[i]; pmin = fmin(pmin, ps[i]); pmax = fmax(pmax, ps[i]); }
   pm /= n;
-  double spread = (pmax - pmin) * DA_RACE_LEN, fit = fmin(1, PACK / fmax(1, spread)), home = clampd((pmax - 0.75) / 0.2, 0, 1);
+  double spread = (pmax - pmin) * DA_RACE_LEN, fit = pow(1 + pow(spread / PACK, 4), -0.25), home = clampd((pmax - 0.65) / 0.3, 0, 1);
   double k = fit + (1 - fit) * home * home * (3 - 2 * home);
   for (int i = 0; i < n; i++) {
     double p = fmin(1, pm) + k * (ps[i] - fmin(1, pm));
