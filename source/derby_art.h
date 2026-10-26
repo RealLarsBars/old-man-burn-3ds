@@ -38,6 +38,8 @@ double da_progress(const DaHorse *h, double t);     // 0 = the gate, 1 = the lin
 
 // The horses (and the tote board's rows) for the card or race on screen. Building happens a few pictures at a time
 // inside the frame: da_build() right after gfx_frame_begin(), every frame, until it says it's done.
+// The race's holiday look from the server ("" or "halloween"; raceId dresses the jockeys), before da_set each frame.
+void da_theme(const char *theme, int raceId);
 void da_set(const DaHorse *hs, int n, const DaBoardRow *board, int nb);
 bool da_build(void);
 bool da_ready(void);

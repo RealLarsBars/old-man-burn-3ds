@@ -26,6 +26,9 @@ double da_hash(int a, int b) {
 #define hash da_hash
 static void R(double x, double y, double w, double h, col_t c) { cv_fill(c); cv_rect(rnd(x), rnd(y), rnd(w), rnd(h)); }
 static void disc(double x, double y, double r, col_t c) { cv_fill(c); cv_disc(x, y, r); }
+/* The holiday look (the race's theme from the server) and the race it's for, which dresses the jockeys: see
+   derby-art.js. Only the pictures change. */
+static bool hw; static int hwSeed;
 
 /* ---------- the atlases: every horse's poses, and the sky, the stands, the tote board and the font ---------- */
 #define NPH 12                         // strides of the gallop drawn per horse; one more cell is the horse standing
@@ -198,18 +201,33 @@ static LegPose legPose(int name, double by, double phase, bool standing) {
   double lo = atan2(h.x - kx, h.y - ky);
   return (LegPose){ kx, ky, kx + sin(lo) * L->l2, ky + cos(lo) * L->l2, lo, h };
 }
-static void leg(int name, double by, double phase, bool standing, double w, col_t col, col_t lowCol) {
+static void leg(int name, double by, double phase, bool standing, double w, col_t col, col_t lowCol, col_t bone) {
   const Leg *L = name >= FL ? &LEG_F : &LEG_H; double jx = L->jx, jy = by + L->jy;
   LegPose p = legPose(name, by, phase, standing);
   stroke(jx, jy, p.kx, p.ky, w, P(col));                                              // forearm / gaskin
   S(p.kx - w * 0.35, p.ky - w * 0.35, w * 0.7, w * 0.7, col);                          // the knee or hock
   stroke(p.kx, p.ky, p.hx, p.hy, w * 0.55, (Paint){ C_LOW, lowCol });                  // cannon and pastern
   S(p.hx - 1.3 + (p.h.planted ? 0 : sin(p.lo) * 0.7), p.hy - 1, 2.6, 1.6, HOOF);
+  if (bone) {                                                                          // Halloween: the leg's bones painted on
+    stroke(jx, jy + 1, p.kx, p.ky, 0.8, P(bone)); stroke(p.kx, p.ky, p.hx, p.hy - 1.6, 0.6, P(bone));
+    S(p.kx - 0.8, p.ky - 0.8, 1.6, 1.6, bone);
+  }
 }
 static double bounce(double phase, bool standing) { return standing ? -1.6 : -1.2 - 0.9 * sin(2 * M_PI * (phase - 0.6)); }
 
 static col_t shade(col_t c) { return shadec(c, 0.75); }
-static void jockey(const DaRider *r, double by, double wave) {
+/* The vampire: hair slicked back to a widow's peak, a high collar, and a long black cape lined in red. */
+static void cape(double jy, double fl) {
+  for (int i = 0; i < 9; i++) {
+    double x = 6 - i * 1.5, y = jy - 43.4 + i * 0.5 + fl * (i / 8.0) * 1.6, h = 2.4 + i * 0.32;
+    S(x, y, 1.7, h, H(1a1020)); S(x, y + h - 0.8, 1.7, 0.8, H(a0142a));
+  }
+  S(7, jy - 45.4, 1.4, 3, H(1a1020)); S(7.6, jy - 44.8, 0.7, 2, H(a0142a));
+  S(8, jy - 49.6, 6.8, 1.8, H(1a1020)); S(10.6, jy - 48.2, 1.4, 0.8, H(1a1020));
+}
+/* Halloween: each jockey dresses up over his garage coat, one costume per saddle cloth: 0 a witch's hat, 1 a
+   jack-o'-lantern helmet, 2 devil horns, 3 a vampire's cape (-1: none). */
+static void jockey(const DaRider *r, double by, double wave, int costume) {
   rd = r;
   col_t trim = look_coat_trim(r->coat);
   double jy = rnd(by * 0.4 * K) / K; jyNow = jy;
@@ -230,8 +248,47 @@ static void jockey(const DaRider *r, double by, double wave) {
   S(12, jy - 46.6, 2.2, 2, rgba(190, 230, 255, .8)); S(12, jy - 46.6, 2.2, 0.6, H(14101f)); S(14.2, jy - 46, 0.8, 0.6, H(14101f));
   S(7.5, jy - 42.5, 3, 1.4, trim);                                                   // collar
   double fl = sin(wave * 16) * 0.8;                                                  // scarf end flapping behind him
-  S(4.6, jy - 42.4 + fl * 0.4, 3, 1, H(c0242e)); S(2, jy - 42 + fl, 3, 1, H(c0242e)); S(0, jy - 41.6 + fl * 1.4, 2, 1, H(c0242e));
-  cv_save(); cv_translate(rnd(11.4 * K) - 15, rnd((jy - 44.9) * K) + 36); look_cap(r->cap); cv_restore();   // a garage cap, on the bike's head
+  if (costume == 3) { cape(jy, fl); return; }
+  col_t sa = costume < 0 ? H(c0242e) : costume == 2 ? H(e0242e) : H(ff8a1f), sb = costume < 0 ? H(c0242e) : H(1a1020);
+  S(4.6, jy - 42.4 + fl * 0.4, 3, 1, sa); S(2, jy - 42 + fl, 3, 1, sb); S(0, jy - 41.6 + fl * 1.4, 2, 1, sa);
+  if (costume == 0) {                                                                // a witch's hat, its tip bent back
+    S(6, jy - 49.6, 11, 1.2, H(1a1020)); S(8.6, jy - 51.6, 6, 2.2, H(1a1020)); S(8.6, jy - 50.8, 6, 0.9, H(b98cff));
+    S(10.8, jy - 50.8, 1.4, 0.9, H(ffd21f));
+    S(9.2, jy - 53.4, 4.6, 1.9, H(1a1020)); S(9.4, jy - 55, 3.4, 1.7, H(1a1020)); S(9.2, jy - 56.4, 2.2, 1.5, H(1a1020));
+    S(7.6, jy - 57, 2, 1, H(1a1020)); S(6.6, jy - 56.4, 1.2, 1, H(1a1020));
+    S(12.4, jy - 54.8, 0.8, 2.6, H(3a2a4e));                                         // a fold of light on it
+  } else if (costume == 1) {                                                         // a jack-o'-lantern helmet, the candle in it flickering
+    col_t lit = sin(wave * 13) > -0.5 ? H(ffe14a) : H(ffb02a);
+    S(7.2, jy - 54.4, 8.4, 6.4, H(e0701a)); S(8, jy - 55.2, 6.8, 0.8, H(e0701a)); S(8, jy - 48, 6.8, 0.8, H(e0701a));
+    S(9.6, jy - 54.4, 0.8, 6.4, H(b8520e)); S(12.6, jy - 54.4, 0.8, 6.4, H(b8520e));
+    S(10.8, jy - 56.8, 1.2, 1.8, H(4a7a2a)); S(12, jy - 56.6, 1.6, 0.8, H(4a7a2a));
+    S(12.6, jy - 53, 1.4, 1.4, lit); S(14.6, jy - 53, 0.9, 1.4, lit);                // carved eyes and a grin, facing forward
+    S(12, jy - 50.6, 3.6, 0.9, lit); S(13, jy - 51.4, 0.8, 0.8, lit);
+  } else if (costume == 2) {                                                         // devil horns on his white hair
+    S(8, jy - 49.6, 6.8, 1.6, H(f1ecf7));
+    S(8.6, jy - 51.4, 1.6, 1.8, H(c0242e)); S(8, jy - 52.8, 1, 1.6, H(e0242e));
+    S(12.6, jy - 51.4, 1.6, 1.8, H(c0242e)); S(13.4, jy - 52.8, 1, 1.6, H(e0242e));
+  } else { cv_save(); cv_translate(rnd(11.4 * K) - 15, rnd((jy - 44.9) * K) + 36); look_cap(r->cap); cv_restore(); }   // a garage cap, on the bike's head
+}
+/* Halloween: every horse runs as a skeleton, painted on over its own coat: bone white on a dark coat, black on a light one. */
+static col_t paintFor(col_t base) {
+  double r = base >> 24, g = (base >> 16) & 255, b = (base >> 8) & 255;
+  return 0.3 * r + 0.59 * g + 0.11 * b > 150 ? H(241c2c) : H(efeadf);
+}
+static void ribs(double by, col_t bone) {
+  for (int i = 0; i < 4; i++) stroke(4.6 + i * 2, by - 26.4 + i * 0.2, 3.4 + i * 2.2, by - 19.6 + i * 0.4, 0.8, P(bone));   // the ribcage
+  S(-10, by - 27.6, 14, 0.8, bone);                                                  // the spine along his back
+  for (int i = 0; i < 3; i++) S(-1 + i * 2.6, by - 26.8, 0.8, 0.8, bone);
+  for (int i = 0; i < 5; i++) S(-13 - i * 1.6, by - 27.2 + i * 0.5, 0.9, 0.9, bone); // down over the rump
+  for (int i = 0; i < 4; i++) S(12.6 + i * 1.6, by - 26 - i * 3, 1.2, 1.2, bone);   // the neck's vertebrae
+}
+static void skull(double by, col_t bone) {
+  stroke(18.6, by - 41.4, 23.4, by - 38.6, 4.4, P(bone));                            // the skull painted over his face
+  stroke(23.4, by - 38.2, 28.4, by - 35.6, 2.4, P(bone));
+  for (int i = 0; i < 3; i++) S(25 + i * 1.3, by - 34.8, 0.7, 0.9, bone);            // teeth
+  S(19.4, by - 42.2, 2.8, 2.6, H(120c10));                                           // a hollow eye socket...
+  S(20.2, by - 41.6, 1.2, 1.2, H(ff8a1f)); S(20.4, by - 41.4, 0.6, 0.6, H(ffe14a));  // ...and an ember glowing in it
+  S(26.6, by - 37.6, 1, 0.8, H(120c10));                                             // the nose hole
 }
 
 /* One horse and its old-man jockey, galloping right, feet on the current origin. wave stands in for the web's clock t
@@ -240,11 +297,11 @@ static void horseBody(const DaHorse *hz, double phase, bool standing, double wav
   const DaLook *look = &hz->look; lk = look;
   const CoatC *cc = coatC(look->coat); col_t base = cc->base, dark = cc->dark, light = cc->light; lkPoints = cc->points;
   col_t mane = maneC(look->mane), s1 = look->silk1, s2 = look->silk2;
-  const char *marks = look->marks;
+  const char *marks = look->marks; col_t bone = hw ? paintFor(base) : 0;
   double by = bounce(phase, standing);
   // far legs, a shade darker
-  leg(HR, by, phase, standing, 4, dark, dark);
-  leg(FR, by, phase, standing, 3.4, dark, dark);
+  leg(HR, by, phase, standing, 4, dark, dark, 0);
+  leg(FR, by, phase, standing, 3.4, dark, dark, 0);
   // tail, streaming back and swishing
   for (int i = 0; i < 13; i++) {
     double w = sin(wave * 9 + i * 0.5) * (i / 4.0);
@@ -297,18 +354,21 @@ static void horseBody(const DaHorse *hz, double phase, bool standing, double wav
   if (!strcmp(marks, "stripe")) stroke(22.5, by - 40, 27, by - 36.5, 0.9, P(SOCK));
   if (!strcmp(marks, "star")) S(20.6, by - 43, 2, 2, SOCK);
   if (!strcmp(marks, "snip")) S(28, by - 36.5, 1.6, 1.2, SOCK);
-  S(20, by - 41.4, 1.6, 1.4, H(120c10)); S(20, by - 41.4, 0.7, 0.7, H(ffffff)); S(29.2, by - 36.2, 0.9, 0.9, H(120c10));
+  if (bone) skull(by, bone);
+  else { S(20, by - 41.4, 1.6, 1.4, H(120c10)); S(20, by - 41.4, 0.7, 0.7, H(ffffff)); }
+  S(29.2, by - 36.2, 0.9, 0.9, H(120c10));
   // bridle and reins
   stroke(19.6, by - 44, 21, by - 36, 0.8, P(H(3a2416))); stroke(21, by - 36.4, 28, by - 35.4, 0.8, P(H(3a2416))); S(27.6, by - 36, 1, 1.4, H(c9c9d6));
+  if (bone) ribs(by, bone);
   // saddle cloth in the silks, with the number on it
   for (int yy = 0; yy < 7; yy++) for (int xx = 0; xx < 12; xx++) S(-8 + xx, by - 29 + yy, 1, 1, silk(look->pattern, xx, yy) ? s2 : s1);
   S(-8, by - 23, 12, 1, rgba(0, 0, 0, .25));
   if (hz->num) { char n[4]; snprintf(n, sizeof n, "%d", hz->num); S(-7, by - 28, 5, 5, H(f4f2ec)); text(n, rnd(-6.2 * K), rnd((by - 27.2) * K), H(14101f), 1); }
   S(-5, by - 31, 12, 2, H(3a2416)); S(-5, by - 31, 12, 0.8, H(6a4a2e));               // saddle
   // near legs, in front of the body
-  leg(HL, by, phase, standing, 4.6, base, base);
-  leg(FL, by, phase, standing, 3.8, base, base);
-  jockey(&hz->rider, by, wave);
+  leg(HL, by, phase, standing, 4.6, base, base, bone);
+  leg(FL, by, phase, standing, 3.8, base, base, bone);
+  jockey(&hz->rider, by, wave, hw ? md(hz->num + hwSeed, 4) : -1);
 }
 static void shadow(void) {
   cv_fill(rgba(40, 20, 10, .28)); cv_rect(rnd(-21 * K), 1, rnd(44 * K), 2); cv_rect(rnd(-16 * K), 3, rnd(34 * K), 1);
@@ -320,18 +380,55 @@ static double phaseOfCell(int f) { return (double)f / NPH; }
 static const col_t SKY[7] = { H(4f7fd0), H(6290d8), H(7aa3dc), H(98b8de), H(b9cddc), H(dcd8c4), H(f2d9a8) };
 #define FINISH 3400
 static double finish = FINISH;
+// Halloween: dusk comes early. A purple sky going orange at the hills, stars, a huge harvest moon, dark wisps of
+// cloud, bats, and now and then a witch on her broom crossing in front of the moon.
+static const col_t SKY_HW[7] = { H(160a2e), H(22103c), H(341848), H(4e2052), H(782c50), H(a8403e), H(d0602e) };
 static void skyStatic(void) {
-  const int bandH = 18;
+  const int bandH = 18; const col_t *cols = hw ? SKY_HW : SKY;
   for (int i = 0; i < 7; i++) {
-    R(0, i * bandH, LW, bandH, SKY[i]);
-    if (i) for (int x = 0; x < LW; x += 2) R(x + (i & 1), i * bandH, 1, 1, SKY[i - 1]);   // dithered seam
+    R(0, i * bandH, LW, bandH, cols[i]);
+    if (i) for (int x = 0; x < LW; x += 2) R(x + (i & 1), i * bandH, 1, 1, cols[i - 1]);   // dithered seam
   }
-  R(0, 7 * bandH, LW, 140 - 7 * bandH, SKY[6]);
+  R(0, 7 * bandH, LW, 140 - 7 * bandH, cols[6]);
+  if (hw) {
+    for (int i = 0; i < 70; i++) R(rnd(hash(i, 41) * LW), rnd(hash(i, 42) * 78), 1, 1, hash(i, 43) > 0.7 ? H(fff6d8) : H(b8a9d6));
+    disc(392, 40, 27, rgba(255, 150, 70, .14)); disc(392, 40, 20, rgba(255, 180, 100, .28));
+    disc(392, 40, 15, H(ffb45a)); disc(394, 38, 13, H(ffc474));
+    disc(386, 36, 3, H(eea050)); disc(398, 46, 2.5, H(eea050)); disc(399, 33, 1.6, H(eea050)); disc(389, 47, 1.5, H(eea050));
+    return;
+  }
   // the afternoon sun, high and to the right, with a soft ring
   disc(392, 34, 18, rgba(255, 248, 220, .35)); disc(392, 34, 10, H(fff6d8));
 }
+static void bat(double x, double y, double f) {   // f: the wingbeat, -1 down .. 1 up
+  x = rnd(x); y = rnd(y);
+  col_t c = H(120a1a); int up = f > 0.35 ? -1 : f < -0.35 ? 1 : 0;
+  R(x - 1, y - 1, 3, 2, c); R(x - 1, y - 2, 1, 1, c); R(x + 1, y - 2, 1, 1, c);
+  R(x - 4, y - 1 + (up > 0 ? 1 : 0), 3, 1, c); R(x + 2, y - 1 + (up > 0 ? 1 : 0), 3, 1, c);
+  R(x - 6, y - 1 + up * 2, 2, 1, c); R(x + 5, y - 1 + up * 2, 2, 1, c);
+}
+static void witch(double x, double y) {
+  x = rnd(x); y = rnd(y);
+  col_t c = H(120a1a);
+  R(x - 9, y + 2, 15, 1, c); R(x - 12, y + 1, 4, 3, c); R(x - 13, y + 2, 1, 2, c);   // the broom
+  R(x - 2, y - 3, 4, 5, c); R(x + 2, y - 2, 2, 1, c); R(x + 3, y - 1, 1, 3, c);    // her, leaning forward
+  R(x - 4, y - 1, 2, 3, c); R(x - 5, y + 1, 1, 2, c);                               // her cloak flying
+  R(x - 3, y - 4, 6, 1, c); R(x - 1, y - 6, 3, 2, c); R(x - 2, y - 7, 2, 1, c); R(x - 3, y - 8, 1, 1, c);   // her hat
+}
+static void skyHW(const DaScene *s) {
+  for (int i = 0; i < 5; i++) {                                                     // thin dark wisps drifting past
+    double w = 50 + hash(i, 1) * 60, cx = mdf(hash(i, 2) * 900 - s->camX * 0.04 - s->t * 3, LW + 160) - 80, cy = 22 + hash(i, 3) * 56;
+    R(cx, cy, w, 2, H(2e1a44)); R(cx + 8, cy - 1, w * 0.6, 1, H(3e2456)); R(cx + 14, cy + 2, w * 0.5, 1, H(24143a));
+  }
+  witch(mdf(s->t * 16 - s->camX * 0.02, LW + 500) - 60, 40 + sin(s->t * 0.9) * 5);
+  for (int i = 0; i < 6; i++) {
+    double x = mdf(hash(i, 51) * 700 + s->t * (14 + hash(i, 52) * 10) - s->camX * 0.05, LW + 60) - 30;
+    bat(x, 18 + hash(i, 53) * 64 + sin(s->t * 1.3 + i) * 6, sin(s->t * 14 + i * 2));
+  }
+}
 static void sky(const DaScene *s) {
   if (bgDone) cv_atlas(bAtl, SKY_X, SKY_Y, LW, 140, 0, 0); else skyStatic();
+  if (hw) { skyHW(s); return; }
   // clouds drift by slowly
   for (int i = 0; i < 6; i++) {
     double w = 40 + hash(i, 1) * 50, cx = mdf(hash(i, 2) * 900 - s->camX * 0.04 - s->t * 3, LW + 160) - 80, cy = 14 + hash(i, 3) * 50;
@@ -351,43 +448,65 @@ static void trees(double camX) {
   double par = 0.32, off = camX * par;
   for (int k = (int)floor(off / 14) - 2; k < (int)floor((off + LW) / 14) + 2; k++) {
     double x = k * 14 - off + hash(k, 21) * 8, h = 10 + hash(k, 22) * 14; bool poplar = hash(k, 23) > 0.8;
-    col_t c = hash(k, 24) > 0.5 ? H(3f6a48) : H(35603f);
-    if (poplar) { R(x + 3, 150 - h - 12, 6, h + 12, H(2f5a3a)); R(x + 4, 150 - h - 14, 4, 2, H(2f5a3a)); }
-    else { disc(rnd(x + 7), rnd(150 - h), 8 + hash(k, 25) * 4, c); R(x + 6, 150 - h, 2, h, H(4a3428)); }
+    col_t c = hw ? (hash(k, 24) > 0.78 ? H(7a3a1c) : hash(k, 24) > 0.4 ? H(2e1c36) : H(261630)) : hash(k, 24) > 0.5 ? H(3f6a48) : H(35603f);
+    if (poplar && hw) {                                                              // a bare, crooked tree
+      double tx = x + 6, ty = 150 - h - 10; col_t tc = H(1a1020);
+      R(tx, ty, 2, h + 10, tc); R(tx - 4, ty + 4, 4, 1, tc); R(tx - 5, ty + 1, 1, 3, tc); R(tx + 2, ty + 7, 4, 1, tc); R(tx + 5, ty + 4, 1, 3, tc); R(tx + 1, ty - 3, 1, 3, tc);
+    } else if (poplar) { R(x + 3, 150 - h - 12, 6, h + 12, H(2f5a3a)); R(x + 4, 150 - h - 14, 4, 2, H(2f5a3a)); }
+    else { disc(rnd(x + 7), rnd(150 - h), 8 + hash(k, 25) * 4, c); R(x + 6, 150 - h, 2, h, hw ? H(1e1420) : H(4a3428)); }
   }
-  R(0, 146, LW, 6, H(46704c));
+  R(0, 146, LW, 6, hw ? H(241a2c) : H(46704c));
 }
 static const col_t CROWD[10] = { H(e0242e), H(ffd21f), H(3a86ff), H(f1ecf7), H(55a630), H(ff7f11), H(6a2c70), H(2a2430), H(f2c9a0), H(8a5a2e) };
+// the stands' paint: roof, its top edge, fascia, shade, tier walls (top, lower), seat rows, arches; and the crowd
+typedef struct { col_t roof, edge, fascia, shade, wall, wall2, row, arch; const col_t *crowd; } StandPaint;
+static const col_t CROWD_HW[10] = { H(ff8a1f), H(1a1020), H(b98cff), H(7dff9c), H(f1ecf7), H(e0242e), H(6a2c70), H(ffd21f), H(3a3a52), H(ff8a1f) };   // in costume
+static const StandPaint STAND = { H(2c4a66), H(3e6488), H(f1ecf7), H(3a3a52), H(e8e0cc), H(c8c0ac), H(5a5a74), H(3a3040), CROWD };
+static const StandPaint STAND_HW = { H(241634), H(3a2450), H(ff8a1f), H(1c1428), H(5a4a6a), H(4a3c5a), H(2e2440), H(1a1020), CROWD_HW };
+static const col_t PENNANTS_HW[4] = { H(ff8a1f), H(1a1020), H(b98cff), H(7dff9c) };
+/* A jack-o'-lantern sitting at (x, y), its face lit by a candle (flicker: the clock, or 0 for a steady glow). */
+static void pumpkin(double x, double y, double flicker) {
+  x = rnd(x); y = rnd(y);
+  col_t lit = sin(flicker * 13 + x) > -0.5 ? H(ffe14a) : H(ffb02a);
+  R(x - 3, y - 5, 7, 5, H(e0701a)); R(x - 2, y - 6, 5, 1, H(e0701a)); R(x - 1, y - 5, 1, 5, H(b8520e)); R(x + 1, y - 5, 1, 5, H(b8520e));
+  R(x, y - 8, 1, 2, H(4a7a2a));
+  R(x - 2, y - 4, 1, 1, lit); R(x + 2, y - 4, 1, 1, lit); R(x - 2, y - 2, 5, 1, lit);
+}
 static void standDraw(double x0, int w, double t, int seed, bool cheer) {
-  const double top = 74, roofH = 8, base = 150;
+  const double top = 74, roofH = 8, base = 150; const StandPaint *P = hw ? &STAND_HW : &STAND;
   // roof: a long cantilever with a white fascia and pennants flying along it
-  R(x0 - 6, top, w + 12, roofH, H(2c4a66)); R(x0 - 6, top + roofH - 2, w + 12, 2, H(f1ecf7)); R(x0 - 6, top, w + 12, 1, H(3e6488));
+  R(x0 - 6, top, w + 12, roofH, P->roof); R(x0 - 6, top + roofH - 2, w + 12, 2, P->fascia); R(x0 - 6, top, w + 12, 1, P->edge);
   for (int i = 0; i < w; i += 30) {
     R(x0 + i, top - 12, 1, 12, H(c9c9d6));
-    double fl = sin(t * 6 + i) * 1.5; col_t fc = CROWD[(i / 30 + seed) % 6];
+    double fl = sin(t * 6 + i) * 1.5; col_t fc = hw ? PENNANTS_HW[(i / 30 + seed) % 4] : CROWD[(i / 30 + seed) % 6];
     R(x0 + i + 1, top - 12, 6, 2, fc); R(x0 + i + 1 + 6, top - 11 + fl * 0.3, 3, 1, fc);
   }
   // shade under the roof, then the tiers of seats packed with people
-  R(x0, top + roofH, w, base - top - roofH, H(3a3a52));
+  R(x0, top + roofH, w, base - top - roofH, P->shade);
+  if (hw) for (int i = 0; i < w; i += 5) R(x0 + i, top + roofH, 1, 1, md(i / 5, 2) ? H(ffd27a) : H(b98cff));   // party lights under the roof
   for (int tier = 0; tier < 3; tier++) {
     double ty = top + roofH + 6 + tier * 18;
-    R(x0, ty + 14, w, 4, tier == 2 ? H(e8e0cc) : H(c8c0ac));                         // tier wall
+    R(x0, ty + 14, w, 4, tier == 2 ? P->wall : P->wall2);                             // tier wall
     for (int row = 0; row < 3; row++) {
       double ry = ty + row * 5;
-      R(x0, ry + 4, w, 1, H(5a5a74));
+      R(x0, ry + 4, w, 1, P->row);
       for (int i = 2; i < w - 2; i += 3) {
-        int k = i + row * 7 + tier * 31 + seed * 97; col_t col = CROWD[(int)floor(hash(k, 1) * 10)];
+        int k = i + row * 7 + tier * 31 + seed * 97; col_t col = P->crowd[(int)floor(hash(k, 1) * 10)];
         double jump = cheer && hash(k, 4) > 0.55 ? fmax(0, sin(t * 9 + hash(k, 5) * 6)) * 2 : 0;
         R(x0 + i, ry + 1 - jump, 2, 3, col);                                          // body
-        R(x0 + i, ry - 1 - jump, 2, 2, hash(k, 2) > 0.85 ? H(f1ecf7) : hash(k, 3) > 0.5 ? H(f2c9a0) : H(c69064));  // head, the odd white hair
+        R(x0 + i, ry - 1 - jump, 2, 2, hw && hash(k, 8) > 0.88 ? H(ff8a1f) : hw && col == H(f1ecf7) ? H(f1ecf7)   // a pumpkin head, a ghost
+          : hash(k, 2) > 0.85 ? H(f1ecf7) : hash(k, 3) > 0.5 ? H(f2c9a0) : H(c69064));  // head, the odd white hair
         if (jump > 1.2 && hash(k, 6) > 0.6) R(x0 + i + (hash(k, 7) > 0.5 ? 2 : -1), ry - 3 - jump, 1, 2, H(f2c9a0));  // an arm in the air
       }
     }
   }
   // columns and the ground-floor arches
-  for (int i = 0; i <= w; i += 40) R(x0 + i - 1, top + roofH, 3, base - top - roofH, H(e8e0cc));
-  R(x0, base - 12, w, 12, H(e8e0cc));
-  for (int i = 8; i < w - 8; i += 20) { R(x0 + i, base - 9, 10, 9, H(3a3040)); R(x0 + i + 1, base - 10, 8, 1, H(3a3040)); }
+  for (int i = 0; i <= w; i += 40) R(x0 + i - 1, top + roofH, 3, base - top - roofH, P->wall);
+  R(x0, base - 12, w, 12, P->wall);
+  for (int i = 8; i < w - 8; i += 20) {
+    R(x0 + i, base - 9, 10, 9, P->arch); R(x0 + i + 1, base - 10, 8, 1, P->arch);
+    if (hw && md((i - 8) / 20, 2) == 0) pumpkin(x0 + i + 5, base, 0);                      // a jack-o'-lantern in every other arch
+  }
 }
 #define CHEER_T(j) ((j) * (2 * M_PI / 9) / 4)          // the 4 cheering frames, a quarter of the crowd's bounce apart
 static void stand(int which, double x0, double t, bool cheer) {
@@ -398,18 +517,22 @@ static void stand(int which, double x0, double t, bool cheer) {
   cv_atlas(bAtl, STAND_AT[which][f][0], STAND_AT[which][f][1], w + 12, STAND_H, rnd(x0) - 6, STAND_TOP);
 }
 static void clockTower(double x) {
-  R(x, 52, 24, 98, H(e8e0cc)); R(x + 2, 52, 2, 98, H(d4ccb6)); R(x - 2, 46, 28, 6, H(2c4a66)); R(x + 6, 36, 12, 10, H(2c4a66)); R(x + 11, 28, 2, 8, H(c9c9d6));
-  disc(x + 12, 66, 7, H(f6f4fa));
+  col_t roof = hw ? H(241634) : H(2c4a66);
+  R(x, 52, 24, 98, hw ? H(5a4a6a) : H(e8e0cc)); R(x + 2, 52, 2, 98, hw ? H(4a3c5a) : H(d4ccb6)); R(x - 2, 46, 28, 6, roof); R(x + 6, 36, 12, 10, roof); R(x + 11, 28, 2, 8, H(c9c9d6));
+  if (hw) disc(x + 12, 66, 10, rgba(255, 200, 120, .3));                            // the face lit up from inside
+  disc(x + 12, 66, 7, hw ? H(ffd9a0) : H(f6f4fa));
   cv_begin(); cv_move(x + 12, 66); cv_line(x + 12, 61); cv_move(x + 12, 66); cv_line(x + 16, 66); cv_stroke(H(14101f), 1);   // 3 o'clock
-  R(x + 5, 80, 14, 3, H(2c4a66)); text("OMD", x + 7, 87, H(2c4a66), 1);
+  R(x + 5, 80, 14, 3, hw ? H(ff8a1f) : H(2c4a66)); text("OMD", x + 7, 87, hw ? H(ff8a1f) : H(2c4a66), 1);
+  if (hw) { R(x + 9, 27, 6, 1, H(120a1a)); R(x + 10, 28, 1, 2, H(120a1a)); R(x + 13, 28, 1, 2, H(120a1a)); R(x + 11, 30, 2, 3, H(120a1a)); }   // a bat hanging off the spire
 }
 #define TOTE_W0 132
 #define TOTE_Y0 76
 static void toteDraw(double x, double y0) {   // the infield tote board: amber bulbs on black, the odds for the race (y0: where y = 76 lands)
   const double w = TOTE_W0, h = 66, y = y0, base = y0 + (150 - TOTE_Y0);
-  R(x + 14, y + h, 4, base - y - h, H(5a5a74)); R(x + w - 18, y + h, 4, base - y - h, H(5a5a74));
-  R(x - 2, y - 2, w + 4, h + 4, H(c9c9d6)); R(x, y, w, h, H(14101a));
-  text("OLD MAN DERBY", x + 6, y + 4, H(ffd21f), 1);
+  col_t leg = hw ? H(2e2440) : H(5a5a74);
+  R(x + 14, y + h, 4, base - y - h, leg); R(x + w - 18, y + h, 4, base - y - h, leg);
+  R(x - 2, y - 2, w + 4, h + 4, hw ? H(5a4a6a) : H(c9c9d6)); R(x, y, w, h, H(14101a));
+  text(hw ? "HALLOWEEN DERBY" : "OLD MAN DERBY", x + 6, y + 4, hw ? H(ff8a1f) : H(ffd21f), 1);
   R(x + 4, y + 11, w - 8, 1, H(3a2a10));
   for (int i = 0; i < nboard; i++) {
     double yy = y + 15 + i * 8;
@@ -426,12 +549,16 @@ static void tote(double x, const DaScene *s) {
     R(x + 14, yy, textW(boardTxt[i][1], 1), 5, H(14101a)); text(boardTxt[i][1], x + 14, yy, H(fff2b0), 1);
   }
 }
-static void farRail(double camX) {
+static void farRail(double camX, double t) {
   double par = 0.86, off = camX * par;
   R(0, FAR_RAIL - 1, LW, 2, H(f6f4fa)); R(0, FAR_RAIL + 1, LW, 1, H(b8b6c8));
   for (int k = (int)floor(off / 12) - 1; k < (int)floor((off + LW) / 12) + 2; k++) {
     double x = k * 12 - off; R(x, FAR_RAIL, 1, 6, H(e8e6f0));
-    if (md(k, 8) == 0) {                                                               // a lamp post every 8 posts, lit
+    if (md(k, 8) == 0 && hw) {                                                         // Halloween: a jack-o'-lantern on every lamp post
+      R(x, FAR_RAIL - 22, 1, 22, H(2e2440));
+      disc(rnd(x + 0.5), FAR_RAIL - 25, 7, rgba(255, 150, 40, .3));
+      pumpkin(x, FAR_RAIL - 22, t + k);
+    } else if (md(k, 8) == 0) {                                                        // a lamp post every 8 posts, lit
       R(x, FAR_RAIL - 22, 1, 22, H(5a5a74)); R(x - 2, FAR_RAIL - 24, 5, 2, H(5a5a74));
       disc(rnd(x + 0.5), FAR_RAIL - 21, 4, rgba(255, 230, 150, .35));
       R(x - 1, FAR_RAIL - 22, 3, 2, H(fff2b0));
@@ -441,29 +568,31 @@ static void farRail(double camX) {
   for (int f = 1; f <= 8; f++) {
     double wx = finish - f * finish / 8, x = wx * par - off;
     if (x < -10 || x > LW + 10) continue;
-    for (int i = 0; i < 6; i++) R(x, FAR_RAIL - 30 + i * 5, 2, 5, i & 1 ? H(f6f4fa) : H(e0242e));
+    for (int i = 0; i < 6; i++) R(x, FAR_RAIL - 30 + i * 5, 2, 5, i & 1 ? (hw ? H(1a1020) : H(f6f4fa)) : hw ? H(ff8a1f) : H(e0242e));
     char n[4]; snprintf(n, sizeof n, "%d", f);
-    R(x - 4, FAR_RAIL - 38, 10, 8, H(f6f4fa)); text(n, x - 1, FAR_RAIL - 36, H(e0242e), 1);
+    R(x - 4, FAR_RAIL - 38, 10, 8, H(f6f4fa)); text(n, x - 1, FAR_RAIL - 36, hw ? H(d0581a) : H(e0242e), 1);
   }
   // the winning post with its red disc
   double fx = finish * par - off;
   if (fx > -20 && fx < LW + 20) {
-    R(fx, FAR_RAIL - 46, 2, 46, H(f6f4fa)); disc(rnd(fx + 1), FAR_RAIL - 48, 6, H(e0242e)); disc(rnd(fx + 1), FAR_RAIL - 48, 3, H(f6f4fa));
+    R(fx, FAR_RAIL - 46, 2, 46, H(f6f4fa)); disc(rnd(fx + 1), FAR_RAIL - 48, 6, hw ? H(ff8a1f) : H(e0242e)); disc(rnd(fx + 1), FAR_RAIL - 48, 3, hw ? H(1a1020) : H(f6f4fa));
   }
 }
 static const col_t DIRT[8] = { H(9a6440), H(a46c46), H(ac744c), H(b07a50), H(b27c52), H(ae784e), H(a8724a), H(a06a44) };
+static const col_t DIRT_HW[8] = { H(6a4434), H(724a38), H(7a503c), H(7e543e), H(805640), H(7c523c), H(764c38), H(6e4634) };   // dusk on the dirt
 static double row_par(double y) { return 0.88 + (y - TRACK_TOP) / (TRACK_BOT - TRACK_TOP) * 0.3; }   // how fast a row of dirt scrolls
 static void track(double camX) {
   // every row of dirt scrolls at its own speed: the far side slower, the near side faster, for depth
   for (int y = TRACK_TOP; y < TRACK_BOT; y++) {
     double f = (double)(y - TRACK_TOP) / (TRACK_BOT - TRACK_TOP), par = row_par(y), off = camX * par;
-    R(0, y, LW, 1, DIRT[(int)fmin(7, floor(f * 8))]);
+    R(0, y, LW, 1, (hw ? DIRT_HW : DIRT)[(int)fmin(7, floor(f * 8))]);
     const int step = 9; int k0 = (int)floor(off / step);
     for (int k = k0; k < k0 + LW / step + 2; k++) {
       double hv = hash(k, y);
-      if (hv < 0.35) R(k * step - off + hash(k, y + 999) * step, y, 1 + (hv < 0.1 ? 2 : 0), 1, hv < 0.18 ? H(8a5636) : H(c08a5e));
+      if (hv < 0.35) R(k * step - off + hash(k, y + 999) * step, y, 1 + (hv < 0.1 ? 2 : 0), 1, hv < 0.18 ? (hw ? H(4e2e20) : H(8a5636)) : hw ? H(94664a) : H(c08a5e));
+      else if (hw && hv > 0.993) R(k * step - off + hash(k, y + 999) * step, y, 2, 1, hv > 0.997 ? H(e0a020) : H(c8501a));   // a fallen leaf
     }
-    if (y % 6 == 0) { double ox = mdf(-off, 40); for (double x = ox - 40; x < LW; x += 40) R(x, y, 18, 1, rgba(120, 70, 40, .18)); }  // harrow lines
+    if (y % 6 == 0) { double ox = mdf(-off, 40); for (double x = ox - 40; x < LW; x += 40) R(x, y, 18, 1, hw ? rgba(60, 30, 20, .2) : rgba(120, 70, 40, .18)); }  // harrow lines
     double fx = finish * par - off;                                                    // the finish line, chalked across
     if (fx > -4 && fx < LW + 4) R(fx, y, 2, 1, H(f6f4fa));
   }
@@ -471,19 +600,25 @@ static void track(double camX) {
 }
 static void nearRail(double camX) {
   double par = 1.22, off = camX * par;
-  R(0, NEAR_RAIL - 2, LW, 14, H(5e8a4a));                                              // the grass verge
+  R(0, NEAR_RAIL - 2, LW, 14, hw ? H(3a4430) : H(5e8a4a));                            // the grass verge
   R(0, NEAR_RAIL + 1, LW, 3, H(f6f4fa)); R(0, NEAR_RAIL + 4, LW, 1, H(b8b6c8));
   for (int k = (int)floor(off / 20) - 1; k < (int)floor((off + LW) / 20) + 2; k++) { double x = k * 20 - off; R(x, NEAR_RAIL + 1, 2, 10, H(e8e6f0)); R(x + 2, NEAR_RAIL + 5, 1, 6, H(b8b6c8)); }
   double fx = finish * par - off;
-  if (fx > -20 && fx < LW + 20) { R(fx, NEAR_RAIL - 26, 3, 36, H(f6f4fa)); disc(rnd(fx + 1.5), NEAR_RAIL - 28, 7, H(e0242e)); }
+  if (fx > -20 && fx < LW + 20) { R(fx, NEAR_RAIL - 26, 3, 36, H(f6f4fa)); disc(rnd(fx + 1.5), NEAR_RAIL - 28, 7, hw ? H(ff8a1f) : H(e0242e)); }
 }
-static void hedge(double camX) {
+static void hedge(double camX, double t) {
   double par = 1.45, off = camX * par;
-  static const col_t FL[4] = { H(e0242e), H(ffd21f), H(f6f4fa), H(ff70a6) };
-  R(0, 250, LW, 20, H(2f5a34));
-  for (int k = (int)floor(off / 6) - 1; k < (int)floor((off + LW) / 6) + 2; k++) {
-    double x = k * 6 - off; disc(rnd(x), 251, 4 + hash(k, 32) * 3, hash(k, 31) > 0.5 ? H(3a6e3e) : H(2a5230));
-    if (hash(k, 33) > 0.55) R(x + hash(k, 34) * 4, 248 + hash(k, 35) * 10, 2, 2, FL[(int)floor(hash(k, 36) * 4)]);
+  static const col_t FL[4] = { H(e0242e), H(ffd21f), H(f6f4fa), H(ff70a6) }, FL_HW[4] = { H(ff8a1f), H(b98cff), H(7dff9c), H(e0242e) };
+  R(0, 250, LW, 20, hw ? H(1a2a20) : H(2f5a34));
+  int k0 = (int)floor(off / 6) - 1, k1 = (int)floor((off + LW) / 6) + 2;
+  for (int k = k0; k < k1; k++) {
+    double x = k * 6 - off; disc(rnd(x), 251, 4 + hash(k, 32) * 3, hash(k, 31) > 0.5 ? (hw ? H(24382a) : H(3a6e3e)) : hw ? H(1c2e22) : H(2a5230));
+    if (hash(k, 33) > 0.55) R(x + hash(k, 34) * 4, 248 + hash(k, 35) * 10, 2, 2, (hw ? FL_HW : FL)[(int)floor(hash(k, 36) * 4)]);
+  }
+  if (hw) for (int k = k0; k < k1; k++) {                                            // jack-o'-lanterns and tombstones along the hedge
+    double x = k * 6 - off, v = hash(k, 37);
+    if (v > 0.93) pumpkin(x, 255, t + k);
+    else if (v > 0.87) { R(x - 3, 246, 7, 9, H(7a7690)); R(x - 2, 245, 5, 1, H(7a7690)); R(x - 3, 246, 1, 9, H(9a96b0)); R(x - 1, 248, 3, 1, H(4a4660)); R(x, 247, 1, 4, H(4a4660)); }
   }
 }
 
@@ -514,9 +649,9 @@ static void plate(double x, double y, const DaHorse *h) {
 }
 
 /* The starting gate, side on, at screen x (the line of its front doors): see derby-art.js. open: 0 shut .. 1 swung wide. */
-#define GATE_GREEN H(2f7a4a)
-#define GATE_DARK H(1f5232)
-#define GATE_LIGHT H(4fae6e)
+#define GATE_GREEN (hw ? H(d8641a) : H(2f7a4a))
+#define GATE_DARK (hw ? H(4a1e0c) : H(1f5232))
+#define GATE_LIGHT (hw ? H(ff9a3a) : H(4fae6e))
 static void gate(double x, double open, bool front) {
   double x0 = x - 70, w = 70;
   if (x0 - 6 > LW || x + 12 < 0) return;
@@ -527,8 +662,8 @@ static void gate(double x, double open, bool front) {
   }
   R(x0 - 3, 92, 4, 140, GATE_DARK); R(x - 1, 92, 4, 140, GATE_DARK);                   // the end posts
   R(x0 - 6, 90, w + 12, 12, GATE_GREEN); R(x0 - 6, 90, w + 12, 2, GATE_LIGHT); R(x0 - 6, 101, w + 12, 1, GATE_DARK);
-  text("OLD MAN DERBY", x0 + 9, 94, H(f6f4fa), 1);
-  for (double bx = x0 + 6; bx < x - 2; bx += 8) R(bx, 102, 1, 72, rgba(31, 82, 50, .85));   // the cage bars
+  text("OLD MAN DERBY", x0 + 9, 94, hw ? H(1a1020) : H(f6f4fa), 1);
+  for (double bx = x0 + 6; bx < x - 2; bx += 8) R(bx, 102, 1, 72, hw ? rgba(74, 30, 12, .85) : rgba(31, 82, 50, .85));   // the cage bars
   R(x0, 136, w, 2, GATE_GREEN); R(x0, 136, w, 1, GATE_LIGHT);                         // the side rail
   R(x0, 174, w, 30, GATE_GREEN); R(x0, 174, w, 1, GATE_LIGHT); R(x0, 203, w, 1, GATE_DARK);  // the kick panel
   for (int i = 0; i < 6; i++) {                                                       // stall numbers on the panel
@@ -578,6 +713,13 @@ void da_set(const DaHorse *hs, int n, const DaBoardRow *b, int nb) {
     }
     toBuild = 0; bgDone = false;     // the tote board is in the background atlas: draw it again (and everything else is cheap to redo)
   }
+}
+void da_theme(const char *theme, int raceId) {
+  bool on = theme && !strcmp(theme, "halloween");
+  if (on == hw && (!on || raceId == hwSeed)) return;
+  hw = on; hwSeed = raceId;
+  for (int i = 0; i < DA_NH; i++) hb[i] = 0;         // every horse, the sky and the stands are drawn again in the new look
+  toBuild = 0; bgDone = false;
 }
 static int nextHorse(void) { for (int i = 0; i < ncur; i++) if (hb[i] < NPH + 1) return i; return -1; }
 bool da_ready(void) { return nextHorse() < 0 && bgDone; }
@@ -634,8 +776,8 @@ static void runner(const DaRunner *r, double t, double dt) {
 void da_scene(const DaScene *s) {
   finish = s->finish > 0 ? s->finish : FINISH;
   sky(s);
-  hills(s->camX, 0.06, 112, 10, H(8aa6cc), 1);
-  hills(s->camX, 0.14, 124, 8, H(6f9486), 4);
+  hills(s->camX, 0.06, 112, 10, hw ? H(3a2650) : H(8aa6cc), 1);
+  hills(s->camX, 0.14, 124, 8, hw ? H(2a1c3c) : H(6f9486), 4);
   trees(s->camX);
   // grandstands, the clock tower and the tote board repeat down the straight
   double par = 0.6, off = s->camX * par, span = 900;
@@ -643,10 +785,17 @@ void da_scene(const DaScene *s) {
     double x = k * span - off;
     stand(0, x, s->t, s->cheer); if (x + 268 < LW && x + 292 > 0) clockTower(x + 268); stand(1, x + 300, s->t, s->cheer);
     tote(x + 560 + 40, s);
-    if (x + 740 < LW && x + 784 > 0) { R(x + 760, 120, 4, 30, H(5a5a74)); R(x + 740, 104, 44, 18, H(e8e0cc)); text("3PM", x + 752, 110, H(e0242e), 1); }   // a little sign
+    if (x + 740 < LW && x + 784 > 0) {                                               // a little sign
+      if (hw) { R(x + 760, 120, 4, 30, H(2e2440)); R(x + 740, 104, 44, 18, H(241634)); text("BOO!", x + 755, 110, H(ff8a1f), 1); }
+      else { R(x + 760, 120, 4, 30, H(5a5a74)); R(x + 740, 104, 44, 18, H(e8e0cc)); text("3PM", x + 752, 110, H(e0242e), 1); }
+    }
   }
-  R(0, 150, LW, FAR_RAIL - 151, H(5e8a4a));                                            // the infield lawn
-  farRail(s->camX);
+  R(0, 150, LW, FAR_RAIL - 151, hw ? H(3a4430) : H(5e8a4a));                          // the infield lawn
+  if (hw) for (int i = 0; i < 7; i++) {                                              // low fog rolling over the infield
+    double w = 60 + hash(i, 63) * 70, fx = mdf(hash(i, 61) * 900 - s->camX * 0.7 - s->t * 6, LW + 200) - 100, fy = rnd(145 + hash(i, 62) * 10);
+    R(fx, fy, w, 3, rgba(200, 180, 230, .16)); R(fx + 10, fy - 1, w - 20, 1, rgba(200, 180, 230, .12));
+  }
+  farRail(s->camX, s->t);
   track(s->camX);
   int ord[DA_NH], n = s->nr; for (int i = 0; i < n; i++) ord[i] = i;
   for (int i = 1; i < n; i++) for (int j = i; j > 0 && s->r[ord[j]].y < s->r[ord[j - 1]].y; j--) { int tmp = ord[j]; ord[j] = ord[j - 1]; ord[j - 1] = tmp; }
@@ -658,7 +807,7 @@ void da_scene(const DaScene *s) {
   for (int i = 0; i < n; i++) { const DaRunner *r = &s->r[ord[i]]; if (r->tag && !r->mine) tag(r->x + 14, r->y - 96, r->tag, r->tagCol); }
   for (int i = 0; i < n; i++) if (s->r[ord[i]].mine) pickTag(&s->r[ord[i]], s->t);
   nearRail(s->camX);
-  hedge(s->camX);
+  hedge(s->camX, s->t);
 }
 
 // Where a horse is (0 = the gate, 1 = the line) t seconds after the gates open: the same curve as server/derby.py progress().
