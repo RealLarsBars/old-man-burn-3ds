@@ -21,7 +21,7 @@ enum { RQ_STATE, RQ_BET };
 
 typedef struct { int n, d, purse; char who[96]; char form[40]; int runs, wins; bool hasRec; } Extra;
 typedef struct {
-  bool ok; int id; s64 closes, start; int nh; DaHorse h[DA_NH]; Extra x[DA_NH];
+  bool ok; int id; char theme[16]; s64 closes, start; int nh; DaHorse h[DA_NH]; Extra x[DA_NH];
   int oldMan, bettors; bool raced, oldManWon; int order[DA_NH];
   int mine, mineBoost, payout; bool paid;          // mine: -1 no pick; payout: -1 not known yet
 } Race;
@@ -89,6 +89,7 @@ static void readRace(json_t *o, Race *r, bool raced) {
     if (json_is_object(rec)) { x->hasRec = true; x->runs = ji(rec, "runs", 0); x->wins = ji(rec, "wins", 0); }
   }
   r->oldMan = horseIndex(r, js(o, "old_man"));
+  snprintf(r->theme, sizeof r->theme, "%s", js(o, "theme"));
   json_t *mine = json_object_get(o, "mine");
   if (json_is_object(mine)) {
     r->mine = horseIndex(r, js(mine, "horse")); r->mineBoost = ji(mine, "boost", 0);
@@ -290,6 +291,7 @@ static void drawParade(double dt) {
 }
 void derby_top(double dt) {
   const Race *r = sh.on ? &sh.race : card.ok ? &card : last.ok ? &last : NULL;
+  da_theme(r ? r->theme : "", r ? r->id : 0);
   if (r) { DaBoardRow b[DA_NH]; boardOf(r, b, -1); da_set(r->h, r->nh, b, r->nh); }
   else da_set(NULL, 0, NULL, 0);
   da_build();
